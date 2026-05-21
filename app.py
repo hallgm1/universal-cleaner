@@ -118,11 +118,10 @@ def clean_spreadsheet(uploaded_file, ext):
 
 # --- ENGINE 2: DOCUMENT PROCESSING & STYLE ADAPTER ---
 def parse_and_reformat_document(uploaded_file, selected_style):
-    """Engine 2: Restructures text layouts into clean, executive-grade formal communications."""
+    """Engine 2: Normalizes paragraph loops, tracks greeting context state, and builds formal letters."""
     doc = Document(uploaded_file)
     cleaned_doc = Document()
     
-    # Process text paragraphs cleanly
     raw_paras = []
     for p in doc.paragraphs:
         t = p.text.strip()
@@ -132,7 +131,6 @@ def parse_and_reformat_document(uploaded_file, selected_style):
     full_text_block = "\n".join(raw_paras)
     is_letter = "to:" in full_text_block.lower() or "dear" in full_text_block.lower()
     
-    # Inject formal letter structural headers
     if is_letter and selected_style in ["Business", "Formal"]:
         cleaned_doc.add_paragraph("[SENDER CONTACT DETAILS]\n[Postal Address Line 1]\nDar es Salaam, Tanzania\n")
         current_date_str = datetime.now().strftime('%B %d, %Y')
@@ -140,37 +138,59 @@ def parse_and_reformat_document(uploaded_file, selected_style):
     else:
         cleaned_doc.add_heading(f"REFORMATTED BUSINESS ARTIFACT - STYLE: {selected_style.upper()}", level=1)
         
+    greeting_injected = False
+    
     for txt in raw_paras:
         if selected_style in ["Business", "Formal"]:
-            # Clean out technical/meta prefixes
             if txt.lower().startswith("date:"):
                 continue
                 
-            # Direct address block structural alignments
             if txt.lower().startswith("to:"):
-                txt = txt.replace("To:", "TO:\n").replace("to:", "TO:\n")
+                txt = re.sub(r"\bto:\s*", "TO:\n", txt, flags=re.I)
+                txt = txt.title().replace("Nssf", "NSSF").replace("Tanzania", "Tanzania")
+                cleaned_doc.add_paragraph(txt)
+                continue
                 
-            # Context-Aware Smart Greeting Conversions
-            txt = re.sub(r"\bhey\s+there\b|\bhi\s+team\b|\bhey\b|\bhi\b", "Dear Sir/Madam,", txt, flags=re.I)
+            # Smart Greeting Extraction Loop
+            contains_greeting = any(k in txt.lower() for k in ["hey there", "hi team", "hey", "hi", "dear sir"])
             
-            # Global Contraction & Slang Expansions
+            if contains_greeting:
+                if not greeting_injected:
+                    # Establish a single official opening signature greeting paragraph
+                    cleaned_doc.add_paragraph("Dear Sir/Madam,")
+                    greeting_injected = True
+                
+                # Strip out the conversational greeting phrases completely so they don't corrupt mid-body sentences
+                txt = re.sub(r"\bhey\s+there,?\s*|\bhi\s+team,?\s*|\bhey,?\s*|\bhi,?\s*|\bdear\s+sir/madam,?\s*", "", txt, flags=re.I)
+                if not txt.strip():
+                    continue
+
+            # Standard Professional Adaptations
             txt = re.sub(r"\bi'm\b", "I am", txt, flags=re.I)
             txt = re.sub(r"\bcan't\b", "cannot", txt, flags=re.I)
             txt = re.sub(r"\bdon't\b", "do not", txt, flags=re.I)
             txt = re.sub(r"\basap\b", "as soon as possible", txt, flags=re.I)
             txt = re.sub(r"\bhaven't\b", "have not", txt, flags=re.I)
-            
-            # High-Fidelity Grammar fixes
-            txt = re.sub(r"\bi\b", "I", txt)
-            txt = re.sub(r"\bi've\b", "I have", txt, flags=re.I)
             txt = re.sub(r"\bask about\b", "inquire regarding", txt, flags=re.I)
-            txt = re.sub(r',+', ',', txt)
+            txt = re.sub(r"\bi've\b", "I have", txt, flags=re.I)
             
-            # Sentence Capitalization Guard: Fixes sentences starting with lowercase letters after splits
-            txt = ". ".join([s.strip().capitalize() if len(s.strip()) > 0 else "" for s in txt.split('.')])
-            txt = re.sub(r'\s+', ' ', txt).strip()
-            # Restore specific institutional casing rules
-            txt = txt.replace("Nssf", "NSSF").replace("Dear sir/madam,", "Dear Sir/Madam,")
+            # Formally clean up pronoun casing patterns
+            txt = re.sub(r"\bi\b", "I", txt)
+            txt = re.sub(r"\b(i\s)", "I ", txt)
+            
+            # Enforce title case rules across sentence structure breaks
+            sentences = txt.split('.')
+            processed_sentences = []
+            for s in sentences:
+                s_strip = s.strip()
+                if len(s_strip) > 0:
+                    processed_sentences.append(s_strip[0].upper() + s_strip[1:])
+            txt = ". ".join(processed_sentences)
+            if len(txt) > 0 and not txt.endswith('.'):
+                txt += '.'
+                
+            txt = re.sub(r',+', ',', txt)
+            txt = txt.replace("Nssf", "NSSF")
             
         elif selected_style == "Non-Formal":
             txt = re.sub(r"\butilize\b", "use", txt, flags=re.I)
