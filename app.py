@@ -118,25 +118,34 @@ def clean_spreadsheet(uploaded_file, ext):
         elif any(keyword in col for keyword in ['date', 'trans']):
             def _date_fix(v):
                 if pd.isna(v) or str(v).strip() == '': return "Invalid Date"
-                s = str(v).strip().lower().replace('.', '-') # Pre-normalize period separators
+                s = str(v).strip().lower().replace('.', '-') # Pre-normalize dot notations to dashes
                 current_time = datetime(2026, 5, 21)
                 
                 if 'yesterday' in s: return (current_time - timedelta(days=1)).strftime('%Y-%m-%d')
                 if 'today' in s or 'now' in s: return current_time.strftime('%Y-%m-%d')
                 
-                if '/' in s or '-' in s:
-                    separator = '/' if '/' in s else '-'
+                separator = '/' if '/' in s else '-'
+                if separator in s:
                     parts = s.split(separator)
                     if len(parts) == 3:
-                        # Fixes the year-first string anomaly (e.g., 2026/02/10)
-                        if len(parts[0]) == 4:
-                            y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
-                            return f"{y}-{m:02d}-{d:02d}"
-                        
-                        p1, p2, p3 = int(parts[0]), int(parts[1]), int(parts[2])
-                        year = 2000 + p3 if p3 < 100 else p3
-                        if p1 > 12 and p2 <= 12: return f"{year}-{p2:02d}-{p1:02d}"
-                        elif p1 <= 12 and p2 <= 12: return f"{year}-{p2:02d}-{p1:02d}"
+                        try:
+                            # Branch A: Explicit Year-First sequence pattern (e.g., 2026/02/10)
+                            if len(parts[0].strip()) == 4:
+                                y = int(parts[0].strip())
+                                m = int(parts[1].strip())
+                                d = int(parts[2].strip())
+                                return f"{y}-{m:02d}-{d:02d}"
+                            
+                            # Branch B: Standard Day/Month leading metrics (e.g., 12/01/26)
+                            p1 = int(parts[0].strip())
+                            p2 = int(parts[1].strip())
+                            p3 = int(parts[2].strip())
+                            y = 2000 + p3 if p3 < 100 else p3
+                            
+                            if p1 <= 31 and p2 <= 12:
+                                return f"{y}-{p2:02d}-{p1:02d}"
+                        except ValueError:
+                            pass
                 
                 parsed_date = pd.to_datetime(v, errors='coerce')
                 if pd.notna(parsed_date): return parsed_date.strftime('%Y-%m-%d')
@@ -199,8 +208,8 @@ def parse_and_reformat_document(uploaded_file, selected_style):
             txt = re.sub(r"\basap\b", "as soon as possible", txt, flags=re.I)
             txt = re.sub(r"\bhaven't\b", "have not", txt, flags=re.I)
             txt = re.sub(r"\bask about\b", "inquire regarding", txt, flags=re.I)
-            txt = re.sub(r"\bi've\b", "I have", txt)
-            txt = re.sub(r"\bi\b", "I")
+            txt = re.sub(r"\bi've\b", "I have", txt, flags=re.I)
+            txt = re.sub(r"\bi\b", "I", txt)
             txt = re.sub(r"\b(i\s)", "I ", txt)
             
             sentences = txt.split('.')
