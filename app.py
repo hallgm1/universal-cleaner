@@ -118,7 +118,7 @@ def clean_spreadsheet(uploaded_file, ext):
         elif any(keyword in col for keyword in ['date', 'trans']):
             def _date_fix(v):
                 if pd.isna(v) or str(v).strip() == '': return "Invalid Date"
-                s = str(v).strip().lower().replace('.', '-') # Pre-normalize dot notations to dashes
+                s = str(v).strip().lower().replace('.', '-')
                 current_time = datetime(2026, 5, 21)
                 
                 if 'yesterday' in s: return (current_time - timedelta(days=1)).strftime('%Y-%m-%d')
@@ -129,14 +129,12 @@ def clean_spreadsheet(uploaded_file, ext):
                     parts = s.split(separator)
                     if len(parts) == 3:
                         try:
-                            # Branch A: Explicit Year-First sequence pattern (e.g., 2026/02/10)
                             if len(parts[0].strip()) == 4:
                                 y = int(parts[0].strip())
                                 m = int(parts[1].strip())
                                 d = int(parts[2].strip())
                                 return f"{y}-{m:02d}-{d:02d}"
                             
-                            # Branch B: Standard Day/Month leading metrics (e.g., 12/01/26)
                             p1 = int(parts[0].strip())
                             p2 = int(parts[1].strip())
                             p3 = int(parts[2].strip())
@@ -152,6 +150,16 @@ def clean_spreadsheet(uploaded_file, ext):
                 return "Invalid Date"
                 
             df[col] = df[col].apply(_date_fix)
+            
+        # 🌍 REGIONAL NORMALIZATION MATRIX LAYER
+        elif 'zone' in col or 'region' in col:
+            def _normalize_region(v):
+                if pd.isna(v) or str(v).strip() == '': return "Unknown"
+                s = str(v).strip().lower()
+                if s in ['dar', 'dsm', 'dar es salaam', 'tanzania']: return "Dar es Salaam"
+                if s in ['znz', 'zanzibar']: return "Zanzibar"
+                return str(v).strip().title()
+            df[col] = df[col].apply(_normalize_region)
 
     df.dropna(how='all', inplace=True)
     
