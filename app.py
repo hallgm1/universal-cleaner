@@ -1,176 +1,228 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import re
 import os
 from io import BytesIO
 from docx import Document
 
-# Initialize a responsive UI engine optimized for desktop and mobile screens
+# Optimize page viewports across mobile browsers and high-resolution desktop terminals
 st.set_page_config(
-    page_title="Universal Master Cleaner",
-    page_icon="🧹",
+    page_title="Global Enterprise Multi-Cleaner",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- REGIONAL AGRONOMY DATABASE (Mkuranga District, Coast Region, Tanzania) ---
-MKURANGA_AGRI_DB = {
-    "soil_profile": "Coastal sandy-loam structures, high drainage, high ambient humidity profiles.",
-    "fertilizers_available": [
-        "UREA (High Nitrogen - vegetative growth booster)",
-        "DAP (Diammonium Phosphate - critical root establishers for basal application)",
-        "CAN (Calcium Ammonium Nitrate - soil-neutral nitrogen feed)",
-        "NPK 20:10:10 / 15:15:15 (Balanced compound macronutrients)",
-        "MOP (Muriate of Potash - critical for fruit weight, sizing, sugar profiling)",
-        "Organic Compost / Manure (Vital for moisture retention in sandy coastal matrices)"
-    ],
-    "varieties": {
-        "Vegetables": {
-            "Tomatoes": {"varieties": ["Tanya", "Assila F1", "Eden F1"], "spacing": "60cm x 50cm", "plan": "DAP basal setup. Split-apply UREA/CAN at weeks 3 and 6. Balance with NPK at flowering stage."},
-            "Okra (Bamia)": {"varieties": ["Pusa Sawani", "Clemson Spineless"], "spacing": "50cm x 30cm", "plan": "Heavy basal organic manure integration. Top-dress with NPK/UREA cycles every 21 days."},
-            "Watermelon": {"varieties": ["Sukari F1", "Safari F1"], "spacing": "150cm x 100cm", "plan": "High manure volume + DAP baseline. Shift heavily to MOP and NPK combinations immediately post-fruit-set for high brix/sweetness parameters."}
-        },
-        "Fruits": {
-            "Mangoes": {"varieties": ["Apple Mango", "Kent", "Keitt"], "spacing": "9m x 9m", "plan": "Apply annual compost loops. Top-dress NPK post-harvest pruning sequences and immediately ahead of flower induction."},
-            "Pineapples": {"varieties": ["Smooth Cayenne", "Queen"], "spacing": "90cm x 60cm x 30cm", "plan": "Highly responsive to localized high nitrogen feeds. Run micro-dosed UREA/NPK splits frequently across rainy periods."},
-            "Cashew": {"varieties": ["Naliendele Improved Clones"], "spacing": "12m x 12m", "plan": "Integrate structured sulfur dusting schedules for powdery mildew vector control. Top-dress NPK during early seasonal rains."}
-        }
+# --- GLOBAL HORTICULTURAL SYSTEM DATABASE ---
+AGRI_MASTER_DB = {
+    "soil_profiles": {
+        "Mkuranga / Coast Region": "Coastal sand-loam variants, exceptional drainage parameters, low organic baseline, high humidity indexes.",
+        "General / Standard Tropical": "Variable clay-loam variations, standard retention capacities."
+    },
+    "fertilizer_matrix": {
+        "Basal Phase": "DAP (Diammonium Phosphate) - Engineered for immediate structural root architecture building.",
+        "Vegetative Growth": "UREA / CAN (Calcium Ammonium Nitrate) - High-efficiency nitrogen release systems.",
+        "Production Phase": "NPK 15:15:15 / 20:10:10 - Balanced core macronutrient distribution layers.",
+        "Quality & Yield Brix Adjustment": "MOP (Muriate of Potash) - Essential for fruit weight optimization, density development, and natural sugar profiling."
+    },
+    "crop_blueprint": {
+        "Tomatoes": {"target_yield_per_acre_tons": 25.0, "spacing": "60cm x 50cm", "density_per_acre": 13300, "base_price_tsh": 1200000},
+        "Watermelon": {"target_yield_per_acre_tons": 30.0, "spacing": "150cm x 100cm", "density_per_acre": 2700, "base_price_tsh": 800000},
+        "Okra (Bamia)": {"target_yield_per_acre_tons": 8.0, "spacing": "50cm x 30cm", "density_per_acre": 26600, "base_price_tsh": 1500000},
+        "Mangoes": {"target_yield_per_acre_tons": 12.0, "spacing": "9m x 9m", "density_per_acre": 50, "base_price_tsh": 2500000},
+        "Pineapples": {"target_yield_per_acre_tons": 35.0, "spacing": "90cm x 60cm x 30cm", "density_per_acre": 18000, "base_price_tsh": 900000},
+        "Cashew": {"target_yield_per_acre_tons": 1.2, "spacing": "12m x 12m", "density_per_acre": 27, "base_price_tsh": 3000000}
     }
 }
 
-# --- TRANSFORMATION PIPELINE ENGINES ---
-
-def clean_spreadsheet(uploaded_file, ext):
-    """Engine 1: Multi-industry global spreadsheet cleaner & structural normalizer."""
-    # Read the file safely into memory
+# --- ENGINE 1: DATA CLEANER & STRUCTURAL AUDITOR ---
+def clean_global_spreadsheet(uploaded_file, ext):
+    """Engine 1: Audits, standardizes headers, strips hidden spaces, cleans duplicates, and fixes mixed data types."""
     if ext == '.csv':
         df = pd.read_csv(uploaded_file)
     else:
         df = pd.read_excel(uploaded_file, engine='openpyxl')
     
-    # 1. Universal Text Cleaning: Strip white spaces from columns and text cells safely
+    # 1. Enforce rigorous, database-safe column names (lowercase, underscores, no symbols)
     df.columns = [re.sub(r'[^a-zA-Z0-9_]', '_', str(col).strip().lower()) for col in df.columns]
     
+    # 2. Complete data normalization cycle row-by-row
     for col in df.columns:
-        # If the column contains text/object data, clean it
         if df[col].dtype == 'object':
             df[col] = df[col].astype(str).str.strip()
-            # Clean duplicate internal spaces (e.g. "John   Doe" -> "John Doe")
             df[col] = df[col].str.replace(r'\s+', ' ', regex=True)
-            # Normalize common empty string placeholders back to true blanks
-            df[col] = df[col].replace(['nan', 'NaN', 'None', 'NULL', 'null', ''], None)
+            df[col] = df[col].replace(['nan', 'NaN', 'None', 'NULL', 'null', ''], np.nan)
+        
+        # Smart formatting: Clean up mixed name columns automatically
+        if 'name' in col:
+            df[col] = df[col].apply(lambda x: str(x).strip().title() if pd.notna(x) else x)
+            
+        # Smart formatting: Standardize dirty phone entries to international format
+        elif any(keyword in col for keyword in ['phone', 'contact', 'tel', 'mobile']):
+            def _phone_fix(v):
+                if pd.isna(v) or str(v).strip() in ['nan', 'None', '-']: return "Invalid/Missing"
+                s = re.sub(r'[^0-9+]', '', str(v))
+                if s.startswith('0') and len(s) == 10: return '255' + s[1:]
+                if s.startswith('+'): return s.replace('+', '')
+                return s
+            df[col] = df[col].apply(_phone_fix)
+            
+        # Smart formatting: Expose numeric value blocks from currency strings
+        elif any(keyword in col for keyword in ['sales', 'amount', 'price', 'revenue', 'cost', 'yield']):
+            def _num_fix(v):
+                if pd.isna(v): return 0
+                s = re.sub(r'[^0-9.]', '', str(v).lower())
+                if s == '' or s == '.': return 0
+                return float(s) if '.' in s else int(s)
+            df[col] = df[col].apply(_num_fix)
+            
+        # Smart formatting: Standardize common dates into clean formats
+        elif 'date' in col:
+            df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%Y-%m-%d').fillna("Invalid Date")
 
-    # 2. Universal Data Purge: Drop fully empty rows & remove duplicates
+    # 3. Drop fully dead rows and clear identical duplicates safely
     df.dropna(how='all', inplace=True)
-    df.drop_duplicates(inplace=True)
+    identity_keys = [c for c in df.columns if 'name' in c or 'phone' in c]
+    df.drop_duplicates(subset=identity_keys if identity_keys else None, keep='first', inplace=True)
     
     return df
 
-def clean_word_document(uploaded_file, tone_format):
-    """Engine 2: Word text parsing engine with automatic tone adjustments."""
+# --- ENGINE 2: DOCUMENT PROCESSING & STYLE ADAPTER ---
+def parse_and_reformat_document(uploaded_file, selected_style):
+    """Engine 2: Parses corporate records, business manuals, and manuals to clean up layout artifacts."""
     doc = Document(uploaded_file)
     cleaned_doc = Document()
-    for paragraph in doc.paragraphs:
-        text = paragraph.text.strip()
-        if not text:
-            continue
-        text = re.sub(r'\s+', ' ', text)
-        if tone_format in ["Business", "Formal"]:
-            text = re.sub(r"\bi'm\b", "I am", text, flags=re.I)
-            text = re.sub(r"\bcan't\b", "cannot", text, flags=re.I)
-            text = re.sub(r"\bdon't\b", "do not", text, flags=re.I)
-            text = re.sub(r"\basap\b", "as soon as possible", text, flags=re.I)
-            text = re.sub(r"\bhey\b|\bhi\b", "Dear Sir/Madam,", text, flags=re.I)
-        elif tone_format == "Non-Formal":
-            text = re.sub(r"\butilize\b", "use", text, flags=re.I)
-            text = re.sub(r"\bsubsequent to\b", "after", text, flags=re.I)
-        cleaned_doc.add_paragraph(text)
-    output_stream = BytesIO()
-    cleaned_doc.save(output_stream)
-    output_stream.seek(0)
-    return output_stream
+    
+    # Structural Title Placement Based on Selection
+    cleaned_doc.add_heading(f"REFORMATTED BUSINESS ARTIFACT - STYLE: {selected_style.upper()}", level=1)
+    
+    for para in doc.paragraphs:
+        txt = para.text.strip()
+        if not txt: continue
+        
+        # Clean spacing layout anomalies
+        txt = re.sub(r'\s+', ' ', txt)
+        
+        # Map stylistic conventions directly to the structural document text layout
+        if selected_style in ["Business", "Formal"]:
+            txt = re.sub(r"\bi'm\b", "I am", txt, flags=re.I)
+            txt = re.sub(r"\bcan't\b", "cannot", txt, flags=re.I)
+            txt = re.sub(r"\bdon't\b", "do not", txt, flags=re.I)
+            txt = re.sub(r"\basap\b", "as soon as possible", txt, flags=re.I)
+            txt = re.sub(r"\bhey\b|\bhi\b", "Dear Sir/Madam,", txt, flags=re.I)
+        elif selected_style == "Non-Formal":
+            txt = re.sub(r"\butilize\b", "use", txt, flags=re.I)
+            txt = re.sub(r"\bsubsequent to\b", "after", txt, flags=re.I)
+            
+        cleaned_doc.add_paragraph(txt)
+        
+    out = BytesIO()
+    cleaned_doc.save(out)
+    out.seek(0)
+    return out
 
-def generate_mkuranga_agri_report(uploaded_file):
-    """Engine 3: Evaluates horticultural inputs, matching them to Mkuranga protocols."""
+# --- ENGINE 3: AGRICULTURAL MODELER & CALCULATOR ---
+def process_agricultural_matrix(uploaded_file, target_acres, location_profile):
+    """Engine 3: Runs predictive calculations, calculates target inputs, and generates manuals."""
     raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
+    
     report = [
         "==========================================================================",
-        "      MKURANGA DISTRICT HORTICULTURE ALIGNED MANAGEMENT BLUEPRINT         ",
+        "          ENTERPRISE HORTICULTURE PLAN & PRECISION MANUAL GENERATOR       ",
         "==========================================================================",
-        f"Target Zone Focus: Mkuranga District, Coast Region (Pwani), Tanzania",
-        f"Soil Matrix Profile: {MKURANGA_AGRI_DB['soil_profile']}\n",
-        "[1. LOCALIZED HIGH-EFFICIENCY AGRI-INPUT AVAILABILITY]"
+        f"Target Operating Footprint Size: {target_acres} Acre(s)",
+        f"Selected Regional Profile: {location_profile}",
+        f"Soil Composition Analysis: {AGRI_MASTER_DB['soil_profiles'].get(location_profile, 'Standard Base')}\n",
+        "--------------------------------------------------------------------------",
+        "1. PRECISION MANAGEMENT MANUAL & NUTRIENT APPLICATION CYCLES",
+        "--------------------------------------------------------------------------"
     ]
-    for fert in MKURANGA_AGRI_DB['fertilizers_available']:
-        report.append(f"  • {fert}")
-    report.append("\n[2. MODERN AGRO-METHODOLOGY TARGET CROPS MATCHED]")
+    for phase, management_plan in AGRI_MASTER_DB['fertilizer_matrix'].items():
+        report.append(f"  ⚡ {phase} Matrix -> Use: {management_plan}")
+        
+    report.append("\n--------------------------------------------------------------------------")
+    report.append("2. FINANCIAL FORECAST & PREDICTIVE YIELD MATRIX MODEL")
+    report.append("--------------------------------------------------------------------------")
     
-    matched = False
-    for category, crops in MKURANGA_AGRI_DB['varieties'].items():
-        report.append(f"\n--- {category.upper()} MANAGEMENT MAP ---")
-        for crop_name, data in crops.items():
-            if crop_name.lower() in raw_text.lower() or "all" in raw_text.lower() or len(raw_text) < 15:
-                matched = True
-                report.append(f"\n● Target crop: {crop_name}")
-                report.append(f"  Recommended High-Yield Varietals: {', '.join(data['varieties'])}")
-                report.append(f"  Precision Field Spacing Protocols: {data['spacing']}")
-                report.append(f"  Modern Nutrient Integration Plan: {data['plan']}")
-    if not matched:
-        report.append("\n*Note: No specific keywords matched. Listing baseline regional varieties.*")
+    # Process agricultural yields based on the items listed in the user's configuration file
+    detected_any = False
+    for crop, data in AGRI_MASTER_DB['crop_blueprint'].items():
+        if crop.lower() in raw_text.lower() or "all" in raw_text.lower() or len(raw_text) < 10:
+            detected_any = True
+            total_plant_population = int(data['density_per_acre'] * target_acres)
+            total_yield_tons = round(data['target_yield_per_acre_tons'] * target_acres, 2)
+            projected_gross_revenue = int(total_yield_tons * 1000 * (data['base_price_tsh'] / 1000))
+            
+            report.append(f"\n● CROP SYSTEM: {crop.upper()}")
+            report.append(f"  ▪ Recommended Plant Population Sizing: {total_plant_population:,} plants")
+            report.append(f"  ▪ Regional Spacing Configurations: {data['spacing']}")
+            report.append(f"  ▪ Expected Operational Harvest Output: {total_yield_tons:,} Tons")
+            report.append(f"  ▪ Projected Market Value Index Baseline: TSh {projected_gross_revenue:,}")
+            
+    if not detected_any:
+        report.append("\n*Note: No custom crop targets matched your instructions file. Baseline metrics provided.*")
+        
     return "\n".join(report)
 
-# --- USER INTERFACE APP LAYOUT ---
+
+# --- INTERACTIVE USER INTERFACE CONSOLE ---
 st.title("🧹 Universal Master Data Cleaning Hub")
-st.write("Upload any file. The system automatically routes data to run global industrial cleaning steps, adapt text styles, or output specialized crop plans.")
+st.write("Upload any file type below. The unified script processes spreadsheets, reformats corporate documentation styles, and generates targeted agricultural projections.")
 
-# Interactive Controls Configuration Sidebar
-st.sidebar.header("🎛️ App Controls")
-text_tone = st.sidebar.selectbox("Document Formatting Style", ["Business", "Formal", "Non-Formal"])
+# App Configuration Settings Sidebar
+st.sidebar.header("⚙️ System Control Panel")
+doc_style = st.sidebar.selectbox("Document Re-Styling Mode", ["Business", "Formal", "Non-Formal"])
+agri_scale = st.sidebar.number_input("Target Agricultural Scale (Acres)", min_value=0.5, max_value=500.0, value=1.0, step=0.5)
+agri_loc = st.sidebar.selectbox("Target Regional Zone", ["Mkuranga / Coast Region", "General / Standard Tropical"])
 
-# Interface UI Element: Upload File Container
-uploaded_file = st.file_uploader("Upload file to process (Excel, CSV, Word, or TXT)", type=["csv", "xlsx", "xls", "docx", "txt"])
+# Unified File Upload Interface Element
+uploaded_file = st.file_uploader("Upload target ledger, contract, presentation text, or agricultural directive", type=["xlsx", "xls", "csv", "docx", "txt"])
 
 if uploaded_file is not None:
     filename = uploaded_file.name
-    _, file_extension = os.path.splitext(filename.lower())
-    st.info(f"📂 Auto-Identified Input Type: **{file_extension.upper()}**")
+    _, ext = os.path.splitext(filename.lower())
+    st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
     
-    # Branch 1: Spreadsheet Execution
-    if file_extension in ['.csv', '.xlsx', '.xls']:
+    # ROUTE 1: SPREADSHEETS & DATA LEDGERS
+    if ext in ['.xlsx', '.xls', '.csv']:
         try:
-            cleaned_df = clean_spreadsheet(uploaded_file, file_extension)
+            with st.spinner("Executing industrial cleaning algorithms..."):
+                cleaned_df = clean_spreadsheet(uploaded_file, ext)
             st.subheader("👀 Preview Cleaned Grid")
-            st.dataframe(cleaned_df.head(30), use_container_width=True)
+            st.dataframe(cleaned_df.head(50), use_container_width=True)
             
-            output_buffer = BytesIO()
-            if file_extension == '.csv':
-                cleaned_df.to_csv(output_buffer, index=False)
-                mime_type, out_filename = "text/csv", "cleaned_master_spreadsheet.csv"
+            out_buf = BytesIO()
+            if ext == '.csv':
+                cleaned_df.to_csv(out_buf, index=False)
+                m_type, name_out = "text/csv", "cleaned_master_spreadsheet.csv"
             else:
-                cleaned_df.to_excel(output_buffer, index=False, engine='openpyxl')
-                mime_type, out_filename = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "cleaned_master_spreadsheet.xlsx"
-            output_buffer.seek(0)
+                cleaned_df.to_excel(out_buf, index=False, engine='openpyxl')
+                m_type, name_out = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "cleaned_master_spreadsheet.xlsx"
+            out_buf.seek(0)
             
-            st.download_button(label="📥 Download Cleaned Spreadsheet", data=output_buffer, file_name=out_filename, mime=mime_type, use_container_width=True)
+            st.download_button("📥 Download Cleaned Spreadsheet", data=out_buf, file_name=name_out, mime=m_type, use_container_width=True)
         except Exception as e:
-            st.error(f"Spreadsheet Engine Error: {str(e)}")
+            st.error(f"Spreadsheet Clean Sub-system Fault: {str(e)}")
             
-    # Branch 2: Document Execution
-    elif file_extension == '.docx':
+    # ROUTE 2: DOCUMENTS, MANUALS & CORPORATE TEXTS
+    elif ext == '.docx':
         try:
-            word_output_stream = clean_word_document(uploaded_file, text_tone)
+            with st.spinner("Normalizing text formatting layouts..."):
+                doc_stream = parse_and_reformat_document(uploaded_file, doc_style)
             st.subheader("👀 Preview Status")
-            st.success(f"Word document content streams successfully parsed, optimized, and set to the '{text_tone.upper()}' linguistic layout standard.")
-            st.download_button(label=f"📥 Download Re-Formatted {text_tone} Document", data=word_output_stream, file_name="cleaned_master_document.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+            st.success(f"Document content parsed successfully. Spacing layouts corrected, and language set to **{doc_style.upper()}** parameters.")
+            st.download_button(f"📥 Download Formatted {doc_style} Document", data=doc_stream, file_name="cleaned_master_document.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
         except Exception as e:
-            st.error(f"Text Document Engine Error: {str(e)}")
+            st.error(f"Text Processing Engine Fault: {str(e)}")
             
-    # Branch 3: Horticulture Execution
-    elif file_extension == '.txt':
+    # ROUTE 3: AGRICULTURAL MANAGEMENT DIRECTIVES
+    elif ext == '.txt':
         try:
-            agri_report = generate_mkuranga_agri_report(uploaded_file)
+            with st.spinner("Processing yield models against regional agronomy charts..."):
+                agri_output_report = process_agricultural_matrix(uploaded_file, agri_scale, agri_loc)
             st.subheader("👀 Preview Blueprint")
-            st.text_area("Generated Output File Data Display", value=agri_report, height=350)
-            st.download_button(label="📥 Download Mkuranga Production Plan (.txt)", data=agri_report, file_name="mkuranga_horticulture_clean_plan.txt", mime="text/plain", use_container_width=True)
+            st.text_area("Generated Output File Data Display", value=agri_output_report, height=400)
+            st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
         except Exception as e:
-            st.error(f"Horticulture Module Error: {str(e)}")
+            st.error(f"Agricultural Modeling Engine Fault: {str(e)}")
