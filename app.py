@@ -118,7 +118,6 @@ def clean_spreadsheet(uploaded_file, ext):
 
 # --- ENGINE 2: DOCUMENT PROCESSING & STYLE ADAPTER ---
 def parse_and_reformat_document(uploaded_file, selected_style):
-    """Engine 2: Normalizes paragraph loops, tracks greeting context state, and builds formal letters."""
     doc = Document(uploaded_file)
     cleaned_doc = Document()
     
@@ -147,25 +146,19 @@ def parse_and_reformat_document(uploaded_file, selected_style):
                 
             if txt.lower().startswith("to:"):
                 txt = re.sub(r"\bto:\s*", "TO:\n", txt, flags=re.I)
-                txt = txt.title().replace("Nssf", "NSSF").replace("Tanzania", "Tanzania")
+                txt = txt.title().replace("Nssf", "NSSF")
                 cleaned_doc.add_paragraph(txt)
                 continue
                 
-            # Smart Greeting Extraction Loop
             contains_greeting = any(k in txt.lower() for k in ["hey there", "hi team", "hey", "hi", "dear sir"])
-            
             if contains_greeting:
                 if not greeting_injected:
-                    # Establish a single official opening signature greeting paragraph
                     cleaned_doc.add_paragraph("Dear Sir/Madam,")
                     greeting_injected = True
-                
-                # Strip out the conversational greeting phrases completely so they don't corrupt mid-body sentences
                 txt = re.sub(r"\bhey\s+there,?\s*|\bhi\s+team,?\s*|\bhey,?\s*|\bhi,?\s*|\bdear\s+sir/madam,?\s*", "", txt, flags=re.I)
                 if not txt.strip():
                     continue
 
-            # Standard Professional Adaptations
             txt = re.sub(r"\bi'm\b", "I am", txt, flags=re.I)
             txt = re.sub(r"\bcan't\b", "cannot", txt, flags=re.I)
             txt = re.sub(r"\bdon't\b", "do not", txt, flags=re.I)
@@ -173,12 +166,9 @@ def parse_and_reformat_document(uploaded_file, selected_style):
             txt = re.sub(r"\bhaven't\b", "have not", txt, flags=re.I)
             txt = re.sub(r"\bask about\b", "inquire regarding", txt, flags=re.I)
             txt = re.sub(r"\bi've\b", "I have", txt, flags=re.I)
-            
-            # Formally clean up pronoun casing patterns
             txt = re.sub(r"\bi\b", "I", txt)
             txt = re.sub(r"\b(i\s)", "I ", txt)
             
-            # Enforce title case rules across sentence structure breaks
             sentences = txt.split('.')
             processed_sentences = []
             for s in sentences:
@@ -207,8 +197,13 @@ def parse_and_reformat_document(uploaded_file, selected_style):
     return out
 
 # --- ENGINE 3: AGRICULTURAL MODELER & CALCULATOR ---
-def process_agricultural_matrix(uploaded_file, target_acres, location_profile):
-    raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
+def process_agricultural_matrix(uploaded_file, ext, target_acres, location_profile):
+    """Engine 3: Extracts agricultural data fields from raw text strings or DOCX objects."""
+    if ext == '.docx':
+        doc = Document(uploaded_file)
+        raw_text = "\n".join([p.text for p in doc.paragraphs])
+    else:
+        raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
     
     report = [
         "==========================================================================",
@@ -230,7 +225,9 @@ def process_agricultural_matrix(uploaded_file, target_acres, location_profile):
     
     detected_any = False
     for crop, data in AGRI_MASTER_DB['crop_blueprint'].items():
-        if crop.lower() in raw_text.lower() or "all" in raw_text.lower() or len(raw_text) < 10:
+        # Smart Keyword Evaluation Bridge
+        crop_keyword = crop.lower().split(' ')[0] # Catches 'Okra' from 'Okra (Bamia)'
+        if crop_keyword in raw_text.lower() or "all" in raw_text.lower() or len(raw_text.strip()) < 10:
             detected_any = True
             total_plant_population = int(data['density_per_acre'] * target_acres)
             total_yield_tons = round(data['target_yield_per_acre_tons'] * target_acres, 2)
@@ -266,6 +263,18 @@ if uploaded_file is not None:
     _, ext = os.path.splitext(filename.lower())
     st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
     
+    # Pre-parse content check to redirect agricultural DOCX structures away from Engine 2
+    is_agri_doc = False
+    if ext == '.docx':
+        try:
+            check_doc = Document(uploaded_file)
+            uploaded_file.seek(0) # Reset stream position
+            full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
+            if any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop"]):
+                is_agri_doc = True
+        except:
+            pass
+
     # ROUTE 1: SPREADSHEETS & DATA LEDGERS
     if ext in ['.xlsx', '.xls', '.csv']:
         try:
@@ -282,12 +291,22 @@ if uploaded_file is not None:
                 cleaned_df.to_excel(out_buf, index=False, engine='openpyxl')
                 m_type, name_out = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "cleaned_master_spreadsheet.xlsx"
             out_buf.seek(0)
-            
             st.download_button("📥 Download Cleaned Spreadsheet", data=out_buf, file_name=name_out, mime=m_type, use_container_width=True)
         except Exception as e:
             st.error(f"Spreadsheet Clean Sub-system Fault: {str(e)}")
             
-    # ROUTE 2: DOCUMENTS, MANUALS & CORPORATE TEXTS
+    # ROUTE 2: AGRICULTURAL BLUEPRINTS (TXT & AGRI-DOCX)
+    elif ext == '.txt' or is_agri_doc:
+        try:
+            with st.spinner("Processing yield models against regional agronomy charts..."):
+                agri_output_report = process_agricultural_matrix(uploaded_file, ext, agri_scale, agri_loc)
+            st.subheader("👀 Preview Blueprint")
+            st.text_area("Generated Output File Data Display", value=agri_output_report, height=400)
+            st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
+        except Exception as e:
+            st.error(f"Agricultural Modeling Engine Fault: {str(e)}")
+
+    # ROUTE 3: CORPORATE TEXTS & REGULAR DOCUMENTS (STANDARD DOCX)
     elif ext == '.docx':
         try:
             with st.spinner("Normalizing text formatting layouts..."):
@@ -297,14 +316,3 @@ if uploaded_file is not None:
             st.download_button(f"📥 Download Formatted {doc_style} Document", data=doc_stream, file_name="cleaned_master_document.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
         except Exception as e:
             st.error(f"Text Processing Engine Fault: {str(e)}")
-            
-    # ROUTE 3: AGRICULTURAL MANAGEMENT DIRECTIVES
-    elif ext == '.txt':
-        try:
-            with st.spinner("Processing yield models against regional agronomy charts..."):
-                agri_output_report = process_agricultural_matrix(uploaded_file, agri_scale, agri_loc)
-            st.subheader("👀 Preview Blueprint")
-            st.text_area("Generated Output File Data Display", value=agri_output_report, height=400)
-            st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
-        except Exception as e:
-            st.error(f"Agricultural Modeling Engine Fault: {str(e)}")
