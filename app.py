@@ -39,7 +39,6 @@ AGRI_MASTER_DB = {
 
 # --- ENGINE 1: DATA CLEANER & STRUCTURAL AUDITOR ---
 def clean_spreadsheet(uploaded_file, ext):
-    """Engine 1: Audits, detects separators automatically, splits columns, and standardizes values."""
     if ext == '.csv':
         df = pd.read_csv(uploaded_file)
     else:
@@ -119,17 +118,38 @@ def clean_spreadsheet(uploaded_file, ext):
 
 # --- ENGINE 2: DOCUMENT PROCESSING & STYLE ADAPTER ---
 def parse_and_reformat_document(uploaded_file, selected_style):
-    """Engine 2: Normalizes text layouts, corrects casing deep within text bodies, and wipes out double commas."""
+    """Engine 2: Restructures text layouts into clean, executive-grade formal communications."""
     doc = Document(uploaded_file)
     cleaned_doc = Document()
-    cleaned_doc.add_heading(f"REFORMATTED BUSINESS ARTIFACT - STYLE: {selected_style.upper()}", level=1)
     
-    for para in doc.paragraphs:
-        txt = para.text.strip()
-        if not txt: continue
-        txt = re.sub(r'\s+', ' ', txt) # Wipes out double spacing layout bugs
+    # Process text paragraphs cleanly
+    raw_paras = []
+    for p in doc.paragraphs:
+        t = p.text.strip()
+        if t:
+            raw_paras.append(re.sub(r'\s+', ' ', t))
+            
+    full_text_block = "\n".join(raw_paras)
+    is_letter = "to:" in full_text_block.lower() or "dear" in full_text_block.lower()
+    
+    # Inject formal letter structural headers
+    if is_letter and selected_style in ["Business", "Formal"]:
+        cleaned_doc.add_paragraph("[SENDER CONTACT DETAILS]\n[Postal Address Line 1]\nDar es Salaam, Tanzania\n")
+        current_date_str = datetime.now().strftime('%B %d, %Y')
+        cleaned_doc.add_paragraph(f"Date: {current_date_str}\n")
+    else:
+        cleaned_doc.add_heading(f"REFORMATTED BUSINESS ARTIFACT - STYLE: {selected_style.upper()}", level=1)
         
+    for txt in raw_paras:
         if selected_style in ["Business", "Formal"]:
+            # Clean out technical/meta prefixes
+            if txt.lower().startswith("date:"):
+                continue
+                
+            # Direct address block structural alignments
+            if txt.lower().startswith("to:"):
+                txt = txt.replace("To:", "TO:\n").replace("to:", "TO:\n")
+                
             # Context-Aware Smart Greeting Conversions
             txt = re.sub(r"\bhey\s+there\b|\bhi\s+team\b|\bhey\b|\bhi\b", "Dear Sir/Madam,", txt, flags=re.I)
             
@@ -140,21 +160,26 @@ def parse_and_reformat_document(uploaded_file, selected_style):
             txt = re.sub(r"\basap\b", "as soon as possible", txt, flags=re.I)
             txt = re.sub(r"\bhaven't\b", "have not", txt, flags=re.I)
             
-            # High-Fidelity Grammar fixes: Capitalize lowercase "i" when used as a lone pronoun anywhere in sentences
+            # High-Fidelity Grammar fixes
             txt = re.sub(r"\bi\b", "I", txt)
             txt = re.sub(r"\bi've\b", "I have", txt, flags=re.I)
-            
-            # Document Structural Fixes: Swap out informal phrases with legal administrative prose
             txt = re.sub(r"\bask about\b", "inquire regarding", txt, flags=re.I)
-            
-            # Wipes out trailing punctuation stacking (e.g., matching "Dear Sir/Madam,," down to a single clean comma)
             txt = re.sub(r',+', ',', txt)
+            
+            # Sentence Capitalization Guard: Fixes sentences starting with lowercase letters after splits
+            txt = ". ".join([s.strip().capitalize() if len(s.strip()) > 0 else "" for s in txt.split('.')])
+            txt = re.sub(r'\s+', ' ', txt).strip()
+            # Restore specific institutional casing rules
+            txt = txt.replace("Nssf", "NSSF").replace("Dear sir/madam,", "Dear Sir/Madam,")
             
         elif selected_style == "Non-Formal":
             txt = re.sub(r"\butilize\b", "use", txt, flags=re.I)
             txt = re.sub(r"\bsubsequent to\b", "after", txt, flags=re.I)
             
         cleaned_doc.add_paragraph(txt)
+        
+    if is_letter and selected_style in ["Business", "Formal"]:
+        cleaned_doc.add_paragraph("\nYours faithfully,\n\n\n_______________________\n[Insert Full Account Name]\nClaimant / Account Holder")
         
     out = BytesIO()
     cleaned_doc.save(out)
