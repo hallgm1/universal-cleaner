@@ -118,15 +118,21 @@ def clean_spreadsheet(uploaded_file, ext):
         elif any(keyword in col for keyword in ['date', 'trans']):
             def _date_fix(v):
                 if pd.isna(v) or str(v).strip() == '': return "Invalid Date"
-                s = str(v).strip().lower()
+                s = str(v).strip().lower().replace('.', '-') # Pre-normalize period separators
                 current_time = datetime(2026, 5, 21)
                 
                 if 'yesterday' in s: return (current_time - timedelta(days=1)).strftime('%Y-%m-%d')
                 if 'today' in s or 'now' in s: return current_time.strftime('%Y-%m-%d')
                 
-                if '/' in s:
-                    parts = s.split('/')
+                if '/' in s or '-' in s:
+                    separator = '/' if '/' in s else '-'
+                    parts = s.split(separator)
                     if len(parts) == 3:
+                        # Fixes the year-first string anomaly (e.g., 2026/02/10)
+                        if len(parts[0]) == 4:
+                            y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+                            return f"{y}-{m:02d}-{d:02d}"
+                        
                         p1, p2, p3 = int(parts[0]), int(parts[1]), int(parts[2])
                         year = 2000 + p3 if p3 < 100 else p3
                         if p1 > 12 and p2 <= 12: return f"{year}-{p2:02d}-{p1:02d}"
@@ -144,7 +150,6 @@ def clean_spreadsheet(uploaded_file, ext):
         valid_phone_col = phone_cols[0]
         df = df.loc[~(df[valid_phone_col].duplicated(keep='first') & (df[valid_phone_col] != ""))]
         
-    # 🔥 STRATEGIC PURGE LAYER: Filter out completely corrupted dates before visualization
     date_cols = [c for c in df.columns if any(k in c for k in ['date', 'trans'])]
     if date_cols:
         df = df[df[date_cols[0]] != 'Invalid Date']
@@ -194,8 +199,8 @@ def parse_and_reformat_document(uploaded_file, selected_style):
             txt = re.sub(r"\basap\b", "as soon as possible", txt, flags=re.I)
             txt = re.sub(r"\bhaven't\b", "have not", txt, flags=re.I)
             txt = re.sub(r"\bask about\b", "inquire regarding", txt, flags=re.I)
-            txt = re.sub(r"\bi've\b", "I have", txt, flags=re.I)
-            txt = re.sub(r"\bi\b", "I", txt)
+            txt = re.sub(r"\bi've\b", "I have", txt)
+            txt = re.sub(r"\bi\b", "I")
             txt = re.sub(r"\b(i\s)", "I ", txt)
             
             sentences = txt.split('.')
@@ -318,31 +323,25 @@ if uploaded_file is not None:
             out_buf.seek(0)
             st.download_button("📥 Download Cleaned Spreadsheet", data=out_buf, file_name=name_out, mime=m_type, use_container_width=True)
             
-            # 🔥 SECTION 4: INTEGRATED EXECUTIVE BUSINESS INTELLIGENCE DASHBOARD
             st.markdown("---")
             st.subheader("📊 Executive Data Insights Dashboard")
             
-            # Find sales and date column keys dynamically
             sales_cols = [c for c in cleaned_df.columns if any(k in c for k in ['sales', 'amount', 'price', 'revenue', 'cost', 'total'])]
             date_cols = [c for c in cleaned_df.columns if any(k in c for k in ['date', 'trans'])]
             zone_cols = [c for c in cleaned_df.columns if 'zone' in c or 'region' in c]
             
             if sales_cols:
                 metric_df = cleaned_df.copy()
-                # Cast the sales text string column back to an executable floating number decimal matrix
                 metric_df[sales_cols[0]] = metric_df[sales_cols[0]].astype(str).str.replace(',', '').astype(float)
                 
                 col1, col2 = st.columns(2)
-                
                 with col1:
                     total_vol = metric_df[sales_cols[0]].sum()
                     st.metric(label="Validated Transaction Volume", value=f"TSh {total_vol:,.2f}")
-                    
                 with col2:
                     total_records = len(metric_df)
                     st.metric(label="Total Cleaned Safe Records", value=f"{total_records} Active Rows")
                 
-                # Render interactive visual metrics charts if both dimensions are present
                 if date_cols:
                     st.write("📈 **Transaction Volume Vector Over Time**")
                     metric_df[date_cols[0]] = pd.to_datetime(metric_df[date_cols[0]])
