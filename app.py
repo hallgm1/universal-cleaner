@@ -28,6 +28,7 @@ AGRI_MASTER_DB = {
         "Quality & Yield Brix Adjustment": "MOP (Muriate of Potash) - Essential for fruit weight optimization, density development, and natural sugar profiling."
     },
     "crop_blueprint": {
+        "Onions (Kitunguu)": {"target_yield_per_acre_tons": 16.0, "spacing": "30cm x 10cm", "density_per_acre": 133000, "base_price_tsh": 1800000},
         "Tomatoes": {"target_yield_per_acre_tons": 25.0, "spacing": "60cm x 50cm", "density_per_acre": 13300, "base_price_tsh": 1200000},
         "Watermelon": {"target_yield_per_acre_tons": 30.0, "spacing": "150cm x 100cm", "density_per_acre": 2700, "base_price_tsh": 800000},
         "Okra (Bamia)": {"target_yield_per_acre_tons": 8.0, "spacing": "50cm x 30cm", "density_per_acre": 26600, "base_price_tsh": 1500000},
@@ -36,6 +37,13 @@ AGRI_MASTER_DB = {
         "Cashew": {"target_yield_per_acre_tons": 1.2, "spacing": "12m x 12m", "density_per_acre": 27, "base_price_tsh": 3000000}
     },
     "protection_schedules": {
+        "Onions (Kitunguu)": [
+            {"phase": "Nursery Phase (Weeks 1-6)", "target": "Damping Off & Nursery Thrips", "intervention": "Metalaxyl + Profenofos drenching loop", "rate": "2g/L + 1ml/L", "phi": "N/A"},
+            {"phase": "Transplanting Window (Weeks 6-7)", "target": "Seedling Shock & Root Nematodes", "intervention": "Humic acid root dipping + Bio-nematicides", "rate": "5ml/L", "phi": "N/A"},
+            {"phase": "Early Growth & Vining (Weeks 8-12)", "target": "Onion Thrips & Purple Blotch", "intervention": "Lambda-Cyhalothrin + Mancozeb protective spray", "rate": "0.5ml/L + 2.5g/L", "phi": "14 Days"},
+            {"phase": "Bulb Expansion Phase (Weeks 13-19)", "target": "Downy Mildew & Storage Rot Risk", "intervention": "Copper Oxychloride + Acetamiprid systematic sweep", "rate": "2g/L + 0.5g/L", "phi": "7 Days"},
+            {"phase": "Maturity & Solar Curing (Weeks 20-24+)", "target": "Neck Rot & Post-Harvest Degradation", "intervention": "Stop all irrigation loops completely. Windrow drying field curing.", "rate": "Manual Processing", "phi": "Zero Chemical Pass"}
+        ],
         "Tomatoes": [
             {"phase": "Nursery / Transplanting", "target": "Damping Off & Early Aphids", "intervention": "Copper Oxychloride + Imidacloprid", "rate": "2g/L + 0.5ml/L", "phi": "N/A"},
             {"phase": "Early Vegetative (Wk 1-3)", "target": "Tuta Absoluta & Leaf Miners", "intervention": "Flubendiamide or Spinosad", "rate": "0.3ml/L", "phi": "3 Days"},
@@ -270,6 +278,7 @@ def process_agricultural_matrix(uploaded_file, ext, target_acres, location_profi
     
     for crop, data in AGRI_MASTER_DB['crop_blueprint'].items():
         crop_keyword = crop.lower().split(' ')[0]
+        # Auto-match if text matches, or fallback if analyzing empty instructions file
         if crop_keyword in raw_text.lower() or "all" in raw_text.lower() or len(raw_text.strip()) < 10:
             detected_any = True
             total_plant_population = int(data['density_per_acre'] * target_acres)
@@ -284,10 +293,11 @@ def process_agricultural_matrix(uploaded_file, ext, target_acres, location_profi
                 f"  ▪ Projected Market Value Index Baseline: TSh {projected_gross_revenue:,.2f}"
             ]
             if crop in AGRI_MASTER_DB["protection_schedules"]:
-                cb.append("\n  ⚙️ ENTERPRISE PLANT PROTECTION PROTOCOLS (SCOUTING & INTERVENTION):")
+                cb.append("\n  ⚙️ TIMELINE MANAGEMENT & CROP CALENDAR SCHEDULING INTERVENTIONS:")
                 for schedule in AGRI_MASTER_DB["protection_schedules"][crop]:
-                    cb.append(f"    ▪ [{schedule['phase']}] Target: {schedule['target']}")
-                    cb.append(f"      Intervention Strategy: {schedule['intervention']} | Field Rate: {schedule['rate']} | PHI Safety Window: {schedule['phi']}")
+                    cb.append(f"    ▪ [{schedule['phase']}]")
+                    cb.append(f"      Target: {schedule['target']}")
+                    cb.append(f"      Action Plan: {schedule['intervention']} | Field Dosage Rate: {schedule['rate']} | PHI Window: {schedule['phi']}\n")
             crop_blocks.append("\n".join(cb))
             
     report.append("\n--------------------------------------------------------------------------")
@@ -319,7 +329,7 @@ if uploaded_file is not None:
             check_doc = Document(uploaded_file)
             uploaded_file.seek(0)
             full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
-            if any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop"]): is_agri_doc = True
+            if any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"]): is_agri_doc = True
         except: pass
 
     if ext in ['.xlsx', '.xls', '.csv']:
@@ -327,7 +337,6 @@ if uploaded_file is not None:
             with st.spinner("Executing structural extraction algorithms..."):
                 cleaned_df = clean_spreadsheet(uploaded_file, ext)
             
-            # 👔 DYNAMIC HEADER PRESENTATION FORMATTER PASS
             display_df = cleaned_df.copy()
             formatted_headers = {}
             for col in display_df.columns:
