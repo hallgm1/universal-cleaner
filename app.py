@@ -39,40 +39,47 @@ AGRI_MASTER_DB = {
 
 # --- ENGINE 1: DATA CLEANER & STRUCTURAL AUDITOR ---
 def clean_spreadsheet(uploaded_file, ext):
-    """Engine 1: Audits, detects separators automatically, splits columns, and standardizes values."""
+    """Engine 1: Automatically handles text-wrapped lines and standardizes all business columns."""
     if ext == '.csv':
-        # Read the first few lines to sniff out the separator (comma, semicolon, or tab)
-        raw_bytes = uploaded_file.read(2048)
-        uploaded_file.seek(0) # Reset file pointer
-        sample_text = raw_bytes.decode('utf-8', errors='ignore')
-        
-        sep = ','
-        if ';' in sample_text and sample_text.count(';') > sample_text.count(','):
-            sep = ';'
-        elif '\t' in sample_text:
-            sep = '\t'
-            
-        df = pd.read_csv(uploaded_file, sep=sep)
+        df = pd.read_csv(uploaded_file)
     else:
         df = pd.read_excel(uploaded_file, engine='openpyxl')
     
-    # 1. Enforce database-safe column names (lowercase, underscores, no symbols)
-    df.columns = [re.sub(r'[^a-zA-Z0-9_]', '_', str(col).strip().lower()) for col in df.columns]
-    # Strip excess underscores from headers caused by trailing formatting spaces
+    # HEALING STEP: If Excel crammed everything into 1 column wrapped in quotes, break it apart manually
+    if len(df.columns) == 1:
+        raw_col = df.columns[0]
+        # Clean quotes and split the header
+        header_line = str(raw_col).replace('"', '').strip()
+        new_headers = [re.sub(r'[^a-zA-Z0-9_]', '_', h.strip().lower()) for h in header_line.split(',')]
+        
+        # Split rows manually
+        split_rows = []
+        for val in df.iloc[:, 0]:
+            row_str = str(val).strip().strip('"')
+            # Handle commas inside quotes safely
+            row_cells = re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', row_str)
+            split_rows.append([c.strip('"').strip() for c in row_cells])
+            
+        df = pd.DataFrame(split_rows, columns=new_headers[:len(split_rows[0])])
+    else:
+        # Enforce regular, database-safe column names
+        df.columns = [re.sub(r'[^a-zA-Z0-9_]', '_', str(col).strip().lower()) for col in df.columns]
+    
+    # Strip excess underscores from headers
     df.columns = [re.sub(r'_+', '_', col).strip('_') for col in df.columns]
     
-    # 2. Complete data normalization cycle row-by-row
+    # 2. Data normalization cycle row-by-row
     for col in df.columns:
         if df[col].dtype == 'object':
             df[col] = df[col].astype(str).str.strip()
             df[col] = df[col].str.replace(r'\s+', ' ', regex=True)
             df[col] = df[col].replace(['nan', 'NaN', 'None', 'NULL', 'null', ''], np.nan)
         
-        # Smart formatting: Clean up names
+        # Formatting: Naming Case Conversion
         if 'name' in col:
-            df[col] = df[col].apply(lambda x: str(x).strip().title() if pd.notna(x) else x)
+            df[col] = df[col].apply(lambda x: str(x).strip().title().replace('.', '') if pd.notna(x) else x)
             
-        # Smart formatting: Standardize phone entries to international format with '+' prefix
+        # Formatting: Standardize phone entries with '+' prefix
         elif any(keyword in col for keyword in ['phone', 'contact', 'tel', 'mobile', 'num']):
             def _phone_fix(v):
                 if pd.isna(v) or str(v).strip().lower() in ['nan', 'none', '-', 'missing', 'invalid', '']: return ""
@@ -86,7 +93,7 @@ def clean_spreadsheet(uploaded_file, ext):
                 return s
             df[col] = df[col].apply(_phone_fix)
             
-        # FINANCIAL MODULE: Extracts numbers and converts to standard accounting format (e.g., 1,200,000.00)
+        # FINANCIAL MODULE: Formats currencies with commas and cents (.00)
         elif any(keyword in col for keyword in ['sales', 'amount', 'price', 'revenue', 'cost', 'yield', 'finance', 'total']):
             def _currency_formatter(v):
                 if pd.isna(v) or str(v).strip() in ['-', '']: return "0.00"
@@ -96,7 +103,7 @@ def clean_spreadsheet(uploaded_file, ext):
                 return f"{num_val:,.2f}"
             df[col] = df[col].apply(_currency_formatter)
             
-        # FIXED DATE MODULE: Intelligently converts words like 'yesterday' to actual calendar stamps
+        # DATE MODULE: Processes standard timestamps and relative strings like 'yesterday'
         elif any(keyword in col for keyword in ['date', 'trans']):
             def _date_fix(v):
                 if pd.isna(v) or str(v).strip() == '': return "Invalid Date"
@@ -115,7 +122,7 @@ def clean_spreadsheet(uploaded_file, ext):
                 
             df[col] = df[col].apply(_date_fix)
 
-    # 3. Clear identical duplicates safely based on standardized keys
+    # 3. Clear identical duplicates safely based on standardized records
     df.dropna(how='all', inplace=True)
     identity_keys = [c for c in df.columns if 'name' in c or 'phone' in c or 'contact' in c]
     df.drop_duplicates(subset=identity_keys if identity_keys else None, keep='first', inplace=True)
@@ -193,7 +200,7 @@ def process_agricultural_matrix(uploaded_file, target_acres, location_profile):
 
 # --- INTERACTIVE USER INTERFACE CONSOLE ---
 st.title("🧹 Universal Master Data Cleaning Hub")
-st.write("Upload any file type below. The unified script automatically smells data delimiters, parses columns, reformats documents, and builds field production blueprints.")
+st.write("Upload any file type below. The unified script processes spreadsheets, reformats corporate documentation styles, and generates targeted agricultural projections.")
 
 # App Configuration Settings Sidebar
 st.sidebar.header("⚙️ System Control Panel")
@@ -212,7 +219,7 @@ if uploaded_file is not None:
     # ROUTE 1: SPREADSHEETS & DATA LEDGERS
     if ext in ['.xlsx', '.xls', '.csv']:
         try:
-            with st.spinner("Executing delimiter auto-sniffing and data cleaning algorithms..."):
+            with st.spinner("Executing structural extraction algorithms..."):
                 cleaned_df = clean_spreadsheet(uploaded_file, ext)
             st.subheader("👀 Preview Cleaned Grid")
             st.dataframe(cleaned_df.head(50), use_container_width=True)
