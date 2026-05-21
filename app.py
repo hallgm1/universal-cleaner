@@ -43,11 +43,14 @@ MKURANGA_AGRI_DB = {
 def clean_spreadsheet(uploaded_file, ext):
     """Engine 1: Multi-industry global spreadsheet cleaner & structural normalizer."""
     df = pd.read_csv(uploaded_file) if ext == '.csv' else pd.read_excel(uploaded_file)
-    # Strip trailing and leading whitespaces globally across cells
-    df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+    
+    # FIX: Using .map() instead of the deprecated .applymap() for modern pandas versions
+    df = df.map(lambda x: x.strip() if isinstance(x, str) else x)
+    
     # Universal Data Purge: Drop fully empty rows & duplicate entries
     df.dropna(how='all', inplace=True)
     df.drop_duplicates(inplace=True)
+    
     # Standardize Column Headers to clean alphanumeric snake_case
     df.columns = [re.sub(r'[^a-zA-Z0-9_]', '_', str(col).strip().lower()) for col in df.columns]
     return df
