@@ -42,17 +42,28 @@ MKURANGA_AGRI_DB = {
 
 def clean_spreadsheet(uploaded_file, ext):
     """Engine 1: Multi-industry global spreadsheet cleaner & structural normalizer."""
-    df = pd.read_csv(uploaded_file) if ext == '.csv' else pd.read_excel(uploaded_file)
+    # Read the file safely into memory
+    if ext == '.csv':
+        df = pd.read_csv(uploaded_file)
+    else:
+        df = pd.read_excel(uploaded_file, engine='openpyxl')
     
-    # FIX: Using .map() instead of the deprecated .applymap() for modern pandas versions
-    df = df.map(lambda x: x.strip() if isinstance(x, str) else x)
+    # 1. Universal Text Cleaning: Strip white spaces from columns and text cells safely
+    df.columns = [re.sub(r'[^a-zA-Z0-9_]', '_', str(col).strip().lower()) for col in df.columns]
     
-    # Universal Data Purge: Drop fully empty rows & duplicate entries
+    for col in df.columns:
+        # If the column contains text/object data, clean it
+        if df[col].dtype == 'object':
+            df[col] = df[col].astype(str).str.strip()
+            # Clean duplicate internal spaces (e.g. "John   Doe" -> "John Doe")
+            df[col] = df[col].str.replace(r'\s+', ' ', regex=True)
+            # Normalize common empty string placeholders back to true blanks
+            df[col] = df[col].replace(['nan', 'NaN', 'None', 'NULL', 'null', ''], None)
+
+    # 2. Universal Data Purge: Drop fully empty rows & remove duplicates
     df.dropna(how='all', inplace=True)
     df.drop_duplicates(inplace=True)
     
-    # Standardize Column Headers to clean alphanumeric snake_case
-    df.columns = [re.sub(r'[^a-zA-Z0-9_]', '_', str(col).strip().lower()) for col in df.columns]
     return df
 
 def clean_word_document(uploaded_file, tone_format):
@@ -63,9 +74,7 @@ def clean_word_document(uploaded_file, tone_format):
         text = paragraph.text.strip()
         if not text:
             continue
-        # Strip duplicate structural spacing artifacts
         text = re.sub(r'\s+', ' ', text)
-        # Apply rule-based language adaptation matrices
         if tone_format in ["Business", "Formal"]:
             text = re.sub(r"\bi'm\b", "I am", text, flags=re.I)
             text = re.sub(r"\bcan't\b", "cannot", text, flags=re.I)
