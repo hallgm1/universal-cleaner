@@ -37,7 +37,7 @@ AGRI_MASTER_DB = {
 }
 
 # --- ENGINE 1: DATA CLEANER & STRUCTURAL AUDITOR ---
-def clean_global_spreadsheet(uploaded_file, ext):
+def clean_spreadsheet(uploaded_file, ext):
     """Engine 1: Audits, standardizes headers, strips hidden spaces, cleans duplicates, and fixes mixed data types."""
     if ext == '.csv':
         df = pd.read_csv(uploaded_file)
@@ -90,7 +90,7 @@ def clean_global_spreadsheet(uploaded_file, ext):
 
 # --- ENGINE 2: DOCUMENT PROCESSING & STYLE ADAPTER ---
 def parse_and_reformat_document(uploaded_file, selected_style):
-    """Engine 2: Parses corporate records, business manuals, and manuals to clean up layout artifacts."""
+    """Engine 2: Parses corporate records, business manuals, and proposals to clean up layout artifacts."""
     doc = Document(uploaded_file)
     cleaned_doc = Document()
     
