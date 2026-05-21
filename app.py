@@ -39,47 +39,38 @@ AGRI_MASTER_DB = {
 
 # --- ENGINE 1: DATA CLEANER & STRUCTURAL AUDITOR ---
 def clean_spreadsheet(uploaded_file, ext):
-    """Engine 1: Automatically handles text-wrapped lines and standardizes all business columns."""
+    """Engine 1: Audits, detects separators automatically, splits columns, and standardizes values."""
     if ext == '.csv':
         df = pd.read_csv(uploaded_file)
     else:
         df = pd.read_excel(uploaded_file, engine='openpyxl')
     
-    # HEALING STEP: If Excel crammed everything into 1 column wrapped in quotes, break it apart manually
     if len(df.columns) == 1:
         raw_col = df.columns[0]
-        # Clean quotes and split the header
         header_line = str(raw_col).replace('"', '').strip()
         new_headers = [re.sub(r'[^a-zA-Z0-9_]', '_', h.strip().lower()) for h in header_line.split(',')]
         
-        # Split rows manually
         split_rows = []
         for val in df.iloc[:, 0]:
             row_str = str(val).strip().strip('"')
-            # Handle commas inside quotes safely
             row_cells = re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', row_str)
             split_rows.append([c.strip('"').strip() for c in row_cells])
             
         df = pd.DataFrame(split_rows, columns=new_headers[:len(split_rows[0])])
     else:
-        # Enforce regular, database-safe column names
         df.columns = [re.sub(r'[^a-zA-Z0-9_]', '_', str(col).strip().lower()) for col in df.columns]
     
-    # Strip excess underscores from headers
     df.columns = [re.sub(r'_+', '_', col).strip('_') for col in df.columns]
     
-    # 2. Data normalization cycle row-by-row
     for col in df.columns:
         if df[col].dtype == 'object':
             df[col] = df[col].astype(str).str.strip()
             df[col] = df[col].str.replace(r'\s+', ' ', regex=True)
             df[col] = df[col].replace(['nan', 'NaN', 'None', 'NULL', 'null', ''], np.nan)
         
-        # Formatting: Naming Case Conversion
         if 'name' in col:
             df[col] = df[col].apply(lambda x: str(x).strip().title().replace('.', '') if pd.notna(x) else x)
             
-        # Formatting: Standardize phone entries with '+' prefix
         elif any(keyword in col for keyword in ['phone', 'contact', 'tel', 'mobile', 'num']):
             def _phone_fix(v):
                 if pd.isna(v) or str(v).strip().lower() in ['nan', 'none', '-', 'missing', 'invalid', '']: return ""
@@ -93,7 +84,6 @@ def clean_spreadsheet(uploaded_file, ext):
                 return s
             df[col] = df[col].apply(_phone_fix)
             
-        # FINANCIAL MODULE: Formats currencies with commas and cents (.00)
         elif any(keyword in col for keyword in ['sales', 'amount', 'price', 'revenue', 'cost', 'yield', 'finance', 'total']):
             def _currency_formatter(v):
                 if pd.isna(v) or str(v).strip() in ['-', '']: return "0.00"
@@ -103,7 +93,6 @@ def clean_spreadsheet(uploaded_file, ext):
                 return f"{num_val:,.2f}"
             df[col] = df[col].apply(_currency_formatter)
             
-        # DATE MODULE: Processes standard timestamps and relative strings like 'yesterday'
         elif any(keyword in col for keyword in ['date', 'trans']):
             def _date_fix(v):
                 if pd.isna(v) or str(v).strip() == '': return "Invalid Date"
@@ -122,7 +111,6 @@ def clean_spreadsheet(uploaded_file, ext):
                 
             df[col] = df[col].apply(_date_fix)
 
-    # 3. Clear identical duplicates safely based on standardized records
     df.dropna(how='all', inplace=True)
     identity_keys = [c for c in df.columns if 'name' in c or 'phone' in c or 'contact' in c]
     df.drop_duplicates(subset=identity_keys if identity_keys else None, keep='first', inplace=True)
@@ -131,6 +119,7 @@ def clean_spreadsheet(uploaded_file, ext):
 
 # --- ENGINE 2: DOCUMENT PROCESSING & STYLE ADAPTER ---
 def parse_and_reformat_document(uploaded_file, selected_style):
+    """Engine 2: Normalizes double spacing and applies context-aware professional prose mappings."""
     doc = Document(uploaded_file)
     cleaned_doc = Document()
     cleaned_doc.add_heading(f"REFORMATTED BUSINESS ARTIFACT - STYLE: {selected_style.upper()}", level=1)
@@ -138,13 +127,18 @@ def parse_and_reformat_document(uploaded_file, selected_style):
     for para in doc.paragraphs:
         txt = para.text.strip()
         if not txt: continue
-        txt = re.sub(r'\s+', ' ', txt)
+        txt = re.sub(r'\s+', ' ', txt) # Force clean single spaces globally
         
         if selected_style in ["Business", "Formal"]:
+            # Context-Aware Smart Greeting Rules (Fixes "Dear Sir/Madam, there" bugs)
+            txt = re.sub(r"\bhey\s+there\b|\bhi\s+team\b|\bhey\b|\bhi\b", "Dear Sir/Madam,", txt, flags=re.I)
+            
+            # Contraction Expansions
             txt = re.sub(r"\bi'm\b", "I am", txt, flags=re.I)
             txt = re.sub(r"\bcan't\b", "cannot", txt, flags=re.I)
             txt = re.sub(r"\bdon't\b", "do not", txt, flags=re.I)
-            txt = re.sub(r"\bhey\b|\bhi\b", "Dear Sir/Madam,", txt, flags=re.I)
+            txt = re.sub(r"\basap\b", "as soon as possible", txt, flags=re.I)
+            
         elif selected_style == "Non-Formal":
             txt = re.sub(r"\butilize\b", "use", txt, flags=re.I)
             txt = re.sub(r"\bsubsequent to\b", "after", txt, flags=re.I)
@@ -200,7 +194,7 @@ def process_agricultural_matrix(uploaded_file, target_acres, location_profile):
 
 # --- INTERACTIVE USER INTERFACE CONSOLE ---
 st.title("🧹 Universal Master Data Cleaning Hub")
-st.write("Upload any file type below. The unified script processes spreadsheets, reformats corporate documentation styles, and generates targeted agricultural projections.")
+st.write("Upload any file type below. The unified script automatically smells data delimiters, parses columns, reformats documents, and builds field production blueprints.")
 
 # App Configuration Settings Sidebar
 st.sidebar.header("⚙️ System Control Panel")
