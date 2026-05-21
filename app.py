@@ -119,7 +119,7 @@ def clean_spreadsheet(uploaded_file, ext):
 
 # --- ENGINE 2: DOCUMENT PROCESSING & STYLE ADAPTER ---
 def parse_and_reformat_document(uploaded_file, selected_style):
-    """Engine 2: Normalizes double spacing and applies context-aware professional prose mappings."""
+    """Engine 2: Normalizes text layouts, corrects casing deep within text bodies, and wipes out double commas."""
     doc = Document(uploaded_file)
     cleaned_doc = Document()
     cleaned_doc.add_heading(f"REFORMATTED BUSINESS ARTIFACT - STYLE: {selected_style.upper()}", level=1)
@@ -127,17 +127,28 @@ def parse_and_reformat_document(uploaded_file, selected_style):
     for para in doc.paragraphs:
         txt = para.text.strip()
         if not txt: continue
-        txt = re.sub(r'\s+', ' ', txt) # Force clean single spaces globally
+        txt = re.sub(r'\s+', ' ', txt) # Wipes out double spacing layout bugs
         
         if selected_style in ["Business", "Formal"]:
-            # Context-Aware Smart Greeting Rules (Fixes "Dear Sir/Madam, there" bugs)
+            # Context-Aware Smart Greeting Conversions
             txt = re.sub(r"\bhey\s+there\b|\bhi\s+team\b|\bhey\b|\bhi\b", "Dear Sir/Madam,", txt, flags=re.I)
             
-            # Contraction Expansions
+            # Global Contraction & Slang Expansions
             txt = re.sub(r"\bi'm\b", "I am", txt, flags=re.I)
             txt = re.sub(r"\bcan't\b", "cannot", txt, flags=re.I)
             txt = re.sub(r"\bdon't\b", "do not", txt, flags=re.I)
             txt = re.sub(r"\basap\b", "as soon as possible", txt, flags=re.I)
+            txt = re.sub(r"\bhaven't\b", "have not", txt, flags=re.I)
+            
+            # High-Fidelity Grammar fixes: Capitalize lowercase "i" when used as a lone pronoun anywhere in sentences
+            txt = re.sub(r"\bi\b", "I", txt)
+            txt = re.sub(r"\bi've\b", "I have", txt, flags=re.I)
+            
+            # Document Structural Fixes: Swap out informal phrases with legal administrative prose
+            txt = re.sub(r"\bask about\b", "inquire regarding", txt, flags=re.I)
+            
+            # Wipes out trailing punctuation stacking (e.g., matching "Dear Sir/Madam,," down to a single clean comma)
+            txt = re.sub(r',+', ',', txt)
             
         elif selected_style == "Non-Formal":
             txt = re.sub(r"\butilize\b", "use", txt, flags=re.I)
