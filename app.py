@@ -151,7 +151,6 @@ def clean_spreadsheet(uploaded_file, ext):
                 
             df[col] = df[col].apply(_date_fix)
             
-        # 🌍 REGIONAL NORMALIZATION MATRIX LAYER
         elif 'zone' in col or 'region' in col:
             def _normalize_region(v):
                 if pd.isna(v) or str(v).strip() == '': return "Unknown"
@@ -327,15 +326,26 @@ if uploaded_file is not None:
         try:
             with st.spinner("Executing structural extraction algorithms..."):
                 cleaned_df = clean_spreadsheet(uploaded_file, ext)
+            
+            # 👔 DYNAMIC HEADER PRESENTATION FORMATTER PASS
+            display_df = cleaned_df.copy()
+            formatted_headers = {}
+            for col in display_df.columns:
+                if col == 'sno':
+                    formatted_headers[col] = 'S.No.'
+                else:
+                    formatted_headers[col] = col.replace('_', ' ').title()
+            display_df.rename(columns=formatted_headers, inplace=True)
+            
             st.subheader("👀 Preview Cleaned Grid")
-            st.dataframe(cleaned_df, use_container_width=True)
+            st.dataframe(display_df, use_container_width=True)
             
             out_buf = BytesIO()
             if ext == '.csv':
-                cleaned_df.to_csv(out_buf, index=False)
+                display_df.to_csv(out_buf, index=False)
                 m_type, name_out = "text/csv", "cleaned_master_spreadsheet.csv"
             else:
-                cleaned_df.to_excel(out_buf, index=False, engine='openpyxl')
+                display_df.to_excel(out_buf, index=False, engine='openpyxl')
                 m_type, name_out = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "cleaned_master_spreadsheet.xlsx"
             out_buf.seek(0)
             st.download_button("📥 Download Cleaned Spreadsheet", data=out_buf, file_name=name_out, mime=m_type, use_container_width=True)
