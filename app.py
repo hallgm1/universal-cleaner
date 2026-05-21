@@ -39,14 +39,27 @@ AGRI_MASTER_DB = {
 
 # --- ENGINE 1: DATA CLEANER & STRUCTURAL AUDITOR ---
 def clean_spreadsheet(uploaded_file, ext):
-    """Engine 1: Audits, standardizes headers, strips spaces, deduplicates, adds + phone prefixes, and resolves text dates."""
+    """Engine 1: Audits, detects separators automatically, splits columns, and standardizes values."""
     if ext == '.csv':
-        df = pd.read_csv(uploaded_file)
+        # Read the first few lines to sniff out the separator (comma, semicolon, or tab)
+        raw_bytes = uploaded_file.read(2048)
+        uploaded_file.seek(0) # Reset file pointer
+        sample_text = raw_bytes.decode('utf-8', errors='ignore')
+        
+        sep = ','
+        if ';' in sample_text and sample_text.count(';') > sample_text.count(','):
+            sep = ';'
+        elif '\t' in sample_text:
+            sep = '\t'
+            
+        df = pd.read_csv(uploaded_file, sep=sep)
     else:
         df = pd.read_excel(uploaded_file, engine='openpyxl')
     
-    # 1. Enforce rigorous, database-safe column names (lowercase, underscores, no symbols)
+    # 1. Enforce database-safe column names (lowercase, underscores, no symbols)
     df.columns = [re.sub(r'[^a-zA-Z0-9_]', '_', str(col).strip().lower()) for col in df.columns]
+    # Strip excess underscores from headers caused by trailing formatting spaces
+    df.columns = [re.sub(r'_+', '_', col).strip('_') for col in df.columns]
     
     # 2. Complete data normalization cycle row-by-row
     for col in df.columns:
@@ -55,15 +68,15 @@ def clean_spreadsheet(uploaded_file, ext):
             df[col] = df[col].str.replace(r'\s+', ' ', regex=True)
             df[col] = df[col].replace(['nan', 'NaN', 'None', 'NULL', 'null', ''], np.nan)
         
-        # Smart formatting: Clean up mixed name columns automatically
+        # Smart formatting: Clean up names
         if 'name' in col:
             df[col] = df[col].apply(lambda x: str(x).strip().title() if pd.notna(x) else x)
             
-        # FIXED PHONE MODULE: Forces an international '+' prefix format globally
-        elif any(keyword in col for keyword in ['phone', 'contact', 'tel', 'mobile']):
+        # Smart formatting: Standardize phone entries to international format with '+' prefix
+        elif any(keyword in col for keyword in ['phone', 'contact', 'tel', 'mobile', 'num']):
             def _phone_fix(v):
-                if pd.isna(v) or str(v).strip() in ['nan', 'None', '-', 'missing', 'invalid']: return ""
-                s = re.sub(r'[^0-9]', '', str(v)) # Strip out everything except numeric digits
+                if pd.isna(v) or str(v).strip().lower() in ['nan', 'none', '-', 'missing', 'invalid', '']: return ""
+                s = re.sub(r'[^0-9]', '', str(v)) 
                 if s.startswith('0') and len(s) == 10: 
                     return '+255' + s[1:]
                 if s.startswith('255') and len(s) == 12:
@@ -74,9 +87,9 @@ def clean_spreadsheet(uploaded_file, ext):
             df[col] = df[col].apply(_phone_fix)
             
         # FINANCIAL MODULE: Extracts numbers and converts to standard accounting format (e.g., 1,200,000.00)
-        elif any(keyword in col for keyword in ['sales', 'amount', 'price', 'revenue', 'cost', 'yield', 'finance']):
+        elif any(keyword in col for keyword in ['sales', 'amount', 'price', 'revenue', 'cost', 'yield', 'finance', 'total']):
             def _currency_formatter(v):
-                if pd.isna(v): return "0.00"
+                if pd.isna(v) or str(v).strip() in ['-', '']: return "0.00"
                 s = re.sub(r'[^0-9.]', '', str(v).lower())
                 if s == '' or s == '.': return "0.00"
                 num_val = float(s) if '.' in s else int(s)
@@ -84,9 +97,9 @@ def clean_spreadsheet(uploaded_file, ext):
             df[col] = df[col].apply(_currency_formatter)
             
         # FIXED DATE MODULE: Intelligently converts words like 'yesterday' to actual calendar stamps
-        elif 'date' in col:
+        elif any(keyword in col for keyword in ['date', 'trans']):
             def _date_fix(v):
-                if pd.isna(v): return "Invalid Date"
+                if pd.isna(v) or str(v).strip() == '': return "Invalid Date"
                 s = str(v).strip().lower()
                 current_time = datetime.now()
                 
@@ -95,7 +108,6 @@ def clean_spreadsheet(uploaded_file, ext):
                 if 'today' in s or 'now' in s:
                     return current_time.strftime('%Y-%m-%d')
                 
-                # Standard date parsing execution loop
                 parsed_date = pd.to_datetime(v, errors='coerce')
                 if pd.notna(parsed_date):
                     return parsed_date.strftime('%Y-%m-%d')
@@ -103,16 +115,15 @@ def clean_spreadsheet(uploaded_file, ext):
                 
             df[col] = df[col].apply(_date_fix)
 
-    # 3. Drop fully dead rows and clear identical duplicates safely
+    # 3. Clear identical duplicates safely based on standardized keys
     df.dropna(how='all', inplace=True)
-    identity_keys = [c for c in df.columns if 'name' in c or 'phone' in c]
+    identity_keys = [c for c in df.columns if 'name' in c or 'phone' in c or 'contact' in c]
     df.drop_duplicates(subset=identity_keys if identity_keys else None, keep='first', inplace=True)
     
     return df
 
 # --- ENGINE 2: DOCUMENT PROCESSING & STYLE ADAPTER ---
 def parse_and_reformat_document(uploaded_file, selected_style):
-    """Engine 2: Parses corporate records, business manuals, and proposals to clean up layout artifacts."""
     doc = Document(uploaded_file)
     cleaned_doc = Document()
     cleaned_doc.add_heading(f"REFORMATTED BUSINESS ARTIFACT - STYLE: {selected_style.upper()}", level=1)
@@ -140,7 +151,6 @@ def parse_and_reformat_document(uploaded_file, selected_style):
 
 # --- ENGINE 3: AGRICULTURAL MODELER & CALCULATOR ---
 def process_agricultural_matrix(uploaded_file, target_acres, location_profile):
-    """Engine 3: Runs predictive calculations, calculates target inputs, and generates manuals with currency layouts."""
     raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
     
     report = [
@@ -183,7 +193,7 @@ def process_agricultural_matrix(uploaded_file, target_acres, location_profile):
 
 # --- INTERACTIVE USER INTERFACE CONSOLE ---
 st.title("🧹 Universal Master Data Cleaning Hub")
-st.write("Upload any file type below. The unified script processes spreadsheets, reformats corporate documentation styles, and generates targeted agricultural projections.")
+st.write("Upload any file type below. The unified script automatically smells data delimiters, parses columns, reformats documents, and builds field production blueprints.")
 
 # App Configuration Settings Sidebar
 st.sidebar.header("⚙️ System Control Panel")
@@ -202,7 +212,7 @@ if uploaded_file is not None:
     # ROUTE 1: SPREADSHEETS & DATA LEDGERS
     if ext in ['.xlsx', '.xls', '.csv']:
         try:
-            with st.spinner("Executing industrial cleaning algorithms..."):
+            with st.spinner("Executing delimiter auto-sniffing and data cleaning algorithms..."):
                 cleaned_df = clean_spreadsheet(uploaded_file, ext)
             st.subheader("👀 Preview Cleaned Grid")
             st.dataframe(cleaned_df.head(50), use_container_width=True)
