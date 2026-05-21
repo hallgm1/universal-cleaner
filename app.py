@@ -38,7 +38,7 @@ AGRI_MASTER_DB = {
 
 # --- ENGINE 1: DATA CLEANER & STRUCTURAL AUDITOR ---
 def clean_spreadsheet(uploaded_file, ext):
-    """Engine 1: Audits, standardizes headers, strips hidden spaces, cleans duplicates, and fixes mixed data types."""
+    """Engine 1: Audits, standardizes headers, strips hidden spaces, cleans duplicates, and formats currencies with commas & cents."""
     if ext == '.csv':
         df = pd.read_csv(uploaded_file)
     else:
@@ -61,21 +61,22 @@ def clean_spreadsheet(uploaded_file, ext):
         # Smart formatting: Standardize dirty phone entries to international format
         elif any(keyword in col for keyword in ['phone', 'contact', 'tel', 'mobile']):
             def _phone_fix(v):
-                if pd.isna(v) or str(v).strip() in ['nan', 'None', '-']: return "Invalid/Missing"
+                if pd.isna(v) or str(v).strip() in ['nan', 'None', '-']: return ""
                 s = re.sub(r'[^0-9+]', '', str(v))
                 if s.startswith('0') and len(s) == 10: return '255' + s[1:]
                 if s.startswith('+'): return s.replace('+', '')
                 return s
             df[col] = df[col].apply(_phone_fix)
             
-        # Smart formatting: Expose numeric value blocks from currency strings
-        elif any(keyword in col for keyword in ['sales', 'amount', 'price', 'revenue', 'cost', 'yield']):
-            def _num_fix(v):
-                if pd.isna(v): return 0
+        # FIXED FINANCIAL MODULE: Extracts numbers and converts to standard accounting format (e.g., 1,200,000.00)
+        elif any(keyword in col for keyword in ['sales', 'amount', 'price', 'revenue', 'cost', 'yield', 'finance']):
+            def _currency_formatter(v):
+                if pd.isna(v): return "0.00"
                 s = re.sub(r'[^0-9.]', '', str(v).lower())
-                if s == '' or s == '.': return 0
-                return float(s) if '.' in s else int(s)
-            df[col] = df[col].apply(_num_fix)
+                if s == '' or s == '.': return "0.00"
+                num_val = float(s) if '.' in s else int(s)
+                return f"{num_val:,.2f}" # Adds commas and guarantees .00 suffix
+            df[col] = df[col].apply(_currency_formatter)
             
         # Smart formatting: Standardize common dates into clean formats
         elif 'date' in col:
@@ -94,17 +95,13 @@ def parse_and_reformat_document(uploaded_file, selected_style):
     doc = Document(uploaded_file)
     cleaned_doc = Document()
     
-    # Structural Title Placement Based on Selection
     cleaned_doc.add_heading(f"REFORMATTED BUSINESS ARTIFACT - STYLE: {selected_style.upper()}", level=1)
     
     for para in doc.paragraphs:
         txt = para.text.strip()
         if not txt: continue
-        
-        # Clean spacing layout anomalies
         txt = re.sub(r'\s+', ' ', txt)
         
-        # Map stylistic conventions directly to the structural document text layout
         if selected_style in ["Business", "Formal"]:
             txt = re.sub(r"\bi'm\b", "I am", txt, flags=re.I)
             txt = re.sub(r"\bcan't\b", "cannot", txt, flags=re.I)
@@ -124,7 +121,7 @@ def parse_and_reformat_document(uploaded_file, selected_style):
 
 # --- ENGINE 3: AGRICULTURAL MODELER & CALCULATOR ---
 def process_agricultural_matrix(uploaded_file, target_acres, location_profile):
-    """Engine 3: Runs predictive calculations, calculates target inputs, and generates manuals."""
+    """Engine 3: Runs predictive calculations, calculates target inputs, and generates manuals with currency layouts."""
     raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
     
     report = [
@@ -145,20 +142,19 @@ def process_agricultural_matrix(uploaded_file, target_acres, location_profile):
     report.append("2. FINANCIAL FORECAST & PREDICTIVE YIELD MATRIX MODEL")
     report.append("--------------------------------------------------------------------------")
     
-    # Process agricultural yields based on the items listed in the user's configuration file
     detected_any = False
     for crop, data in AGRI_MASTER_DB['crop_blueprint'].items():
         if crop.lower() in raw_text.lower() or "all" in raw_text.lower() or len(raw_text) < 10:
             detected_any = True
             total_plant_population = int(data['density_per_acre'] * target_acres)
             total_yield_tons = round(data['target_yield_per_acre_tons'] * target_acres, 2)
-            projected_gross_revenue = int(total_yield_tons * 1000 * (data['base_price_tsh'] / 1000))
+            projected_gross_revenue = float(total_yield_tons * 1000 * (data['base_price_tsh'] / 1000))
             
             report.append(f"\n● CROP SYSTEM: {crop.upper()}")
             report.append(f"  ▪ Recommended Plant Population Sizing: {total_plant_population:,} plants")
             report.append(f"  ▪ Regional Spacing Configurations: {data['spacing']}")
             report.append(f"  ▪ Expected Operational Harvest Output: {total_yield_tons:,} Tons")
-            report.append(f"  ▪ Projected Market Value Index Baseline: TSh {projected_gross_revenue:,}")
+            report.append(f"  ▪ Projected Market Value Index Baseline: TSh {projected_gross_revenue:,.2f}")
             
     if not detected_any:
         report.append("\n*Note: No custom crop targets matched your instructions file. Baseline metrics provided.*")
