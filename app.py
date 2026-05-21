@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import re
 import os
+from datetime import datetime, timedelta
 from io import BytesIO
 from docx import Document
 
@@ -38,7 +39,7 @@ AGRI_MASTER_DB = {
 
 # --- ENGINE 1: DATA CLEANER & STRUCTURAL AUDITOR ---
 def clean_spreadsheet(uploaded_file, ext):
-    """Engine 1: Audits, standardizes headers, strips hidden spaces, cleans duplicates, and formats currencies with commas & cents."""
+    """Engine 1: Audits, standardizes headers, strips spaces, deduplicates, adds + phone prefixes, and resolves text dates."""
     if ext == '.csv':
         df = pd.read_csv(uploaded_file)
     else:
@@ -58,29 +59,49 @@ def clean_spreadsheet(uploaded_file, ext):
         if 'name' in col:
             df[col] = df[col].apply(lambda x: str(x).strip().title() if pd.notna(x) else x)
             
-        # Smart formatting: Standardize dirty phone entries to international format
+        # FIXED PHONE MODULE: Forces an international '+' prefix format globally
         elif any(keyword in col for keyword in ['phone', 'contact', 'tel', 'mobile']):
             def _phone_fix(v):
-                if pd.isna(v) or str(v).strip() in ['nan', 'None', '-']: return ""
-                s = re.sub(r'[^0-9+]', '', str(v))
-                if s.startswith('0') and len(s) == 10: return '255' + s[1:]
-                if s.startswith('+'): return s.replace('+', '')
+                if pd.isna(v) or str(v).strip() in ['nan', 'None', '-', 'missing', 'invalid']: return ""
+                s = re.sub(r'[^0-9]', '', str(v)) # Strip out everything except numeric digits
+                if s.startswith('0') and len(s) == 10: 
+                    return '+255' + s[1:]
+                if s.startswith('255') and len(s) == 12:
+                    return '+' + s
+                if len(s) > 0 and not s.startswith('+'):
+                    return '+' + s
                 return s
             df[col] = df[col].apply(_phone_fix)
             
-        # FIXED FINANCIAL MODULE: Extracts numbers and converts to standard accounting format (e.g., 1,200,000.00)
+        # FINANCIAL MODULE: Extracts numbers and converts to standard accounting format (e.g., 1,200,000.00)
         elif any(keyword in col for keyword in ['sales', 'amount', 'price', 'revenue', 'cost', 'yield', 'finance']):
             def _currency_formatter(v):
                 if pd.isna(v): return "0.00"
                 s = re.sub(r'[^0-9.]', '', str(v).lower())
                 if s == '' or s == '.': return "0.00"
                 num_val = float(s) if '.' in s else int(s)
-                return f"{num_val:,.2f}" # Adds commas and guarantees .00 suffix
+                return f"{num_val:,.2f}"
             df[col] = df[col].apply(_currency_formatter)
             
-        # Smart formatting: Standardize common dates into clean formats
+        # FIXED DATE MODULE: Intelligently converts words like 'yesterday' to actual calendar stamps
         elif 'date' in col:
-            df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%Y-%m-%d').fillna("Invalid Date")
+            def _date_fix(v):
+                if pd.isna(v): return "Invalid Date"
+                s = str(v).strip().lower()
+                current_time = datetime.now()
+                
+                if 'yesterday' in s:
+                    return (current_time - timedelta(days=1)).strftime('%Y-%m-%d')
+                if 'today' in s or 'now' in s:
+                    return current_time.strftime('%Y-%m-%d')
+                
+                # Standard date parsing execution loop
+                parsed_date = pd.to_datetime(v, errors='coerce')
+                if pd.notna(parsed_date):
+                    return parsed_date.strftime('%Y-%m-%d')
+                return "Invalid Date"
+                
+            df[col] = df[col].apply(_date_fix)
 
     # 3. Drop fully dead rows and clear identical duplicates safely
     df.dropna(how='all', inplace=True)
@@ -94,7 +115,6 @@ def parse_and_reformat_document(uploaded_file, selected_style):
     """Engine 2: Parses corporate records, business manuals, and proposals to clean up layout artifacts."""
     doc = Document(uploaded_file)
     cleaned_doc = Document()
-    
     cleaned_doc.add_heading(f"REFORMATTED BUSINESS ARTIFACT - STYLE: {selected_style.upper()}", level=1)
     
     for para in doc.paragraphs:
@@ -106,7 +126,6 @@ def parse_and_reformat_document(uploaded_file, selected_style):
             txt = re.sub(r"\bi'm\b", "I am", txt, flags=re.I)
             txt = re.sub(r"\bcan't\b", "cannot", txt, flags=re.I)
             txt = re.sub(r"\bdon't\b", "do not", txt, flags=re.I)
-            txt = re.sub(r"\basap\b", "as soon as possible", txt, flags=re.I)
             txt = re.sub(r"\bhey\b|\bhi\b", "Dear Sir/Madam,", txt, flags=re.I)
         elif selected_style == "Non-Formal":
             txt = re.sub(r"\butilize\b", "use", txt, flags=re.I)
