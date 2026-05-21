@@ -34,6 +34,27 @@ AGRI_MASTER_DB = {
         "Mangoes": {"target_yield_per_acre_tons": 12.0, "spacing": "9m x 9m", "density_per_acre": 50, "base_price_tsh": 2500000},
         "Pineapples": {"target_yield_per_acre_tons": 35.0, "spacing": "90cm x 60cm x 30cm", "density_per_acre": 18000, "base_price_tsh": 900000},
         "Cashew": {"target_yield_per_acre_tons": 1.2, "spacing": "12m x 12m", "density_per_acre": 27, "base_price_tsh": 3000000}
+    },
+    # Dynamic Plant Protection Sub-System Matrix Mapping
+    "protection_schedules": {
+        "Tomatoes": [
+            {"phase": "Nursery / Transplanting", "target": "Damping Off & Early Aphids", "intervention": "Copper Oxychloride + Imidacloprid", "rate": "2g/L + 0.5ml/L", "phi": "N/A"},
+            {"phase": "Early Vegetative (Wk 1-3)", "target": "Tuta Absoluta & Leaf Miners", "intervention": "Flubendiamide or Spinosad", "rate": "0.3ml/L", "phi": "3 Days"},
+            {"phase": "Flowering to Fruit Set", "target": "Early/Late Blight & Whiteflies", "intervention": "Mancozeb + Acetamiprid", "rate": "2.5g/L + 0.5g/L", "phi": "7 Days"},
+            {"phase": "Maturation / Harvest", "target": "Fruit Borers & Powdery Mildew", "intervention": "Indoxacarb + Azoxystrobin", "rate": "0.5ml/L + 1ml/L", "phi": "3 Days"}
+        ],
+        "Watermelon": [
+            {"phase": "Seedling Emergence", "target": "Soil Insects & Damping Off", "intervention": "Metalaxyl drenching", "rate": "2g/L", "phi": "N/A"},
+            {"phase": "Vining / Vegetative", "target": "Melon Aphids & Thrips", "intervention": "Thiamethoxam", "rate": "0.4g/L", "phi": "7 Days"},
+            {"phase": "Flowering Block", "target": "Downy Mildew (Avoid pollinator disruption)", "intervention": "Propamocarb (Apply late afternoon)", "rate": "1.5ml/L", "phi": "3 Days"},
+            {"phase": "Fruit Expansion", "target": "Fruit Flies & Anthracnose", "intervention": "Lambda-Cyhalothrin + Mancozeb", "rate": "0.5ml/L + 2g/L", "phi": "7 Days"}
+        ],
+        "Okra (Bamia)": [
+            {"phase": "Early Establishment", "target": "Flea Beetles & Jassids", "intervention": "Imidacloprid foliar application", "rate": "0.5ml/L", "phi": "7 Days"},
+            {"phase": "Vegetative Stretch", "target": "Powdery Mildew & Aphids", "intervention": "Sulfur WG + Acetamiprid", "rate": "3g/L + 0.4g/L", "phi": "3 Days"},
+            {"phase": "Flowering Phase", "target": "Bollworms / Pod Borers", "intervention": "Chlorantraniliprole (Coragen)", "rate": "0.4ml/L", "phi": "1 Day"},
+            {"phase": "Active Harvest Loop", "target": "Whiteflies & Red Spider Mites", "intervention": "Abamectin (Strict PHI safety sweep)", "rate": "0.5ml/L", "phi": "3 Days"}
+        ]
     }
 }
 
@@ -198,7 +219,6 @@ def parse_and_reformat_document(uploaded_file, selected_style):
 
 # --- ENGINE 3: AGRICULTURAL MODELER & CALCULATOR ---
 def process_agricultural_matrix(uploaded_file, ext, target_acres, location_profile):
-    """Engine 3: Extracts agricultural data fields from raw text strings or DOCX objects."""
     if ext == '.docx':
         doc = Document(uploaded_file)
         raw_text = "\n".join([p.text for p in doc.paragraphs])
@@ -219,27 +239,40 @@ def process_agricultural_matrix(uploaded_file, ext, target_acres, location_profi
     for phase, management_plan in AGRI_MASTER_DB['fertilizer_matrix'].items():
         report.append(f"  ⚡ {phase} Matrix -> Use: {management_plan}")
         
-    report.append("\n--------------------------------------------------------------------------")
-    report.append("2. FINANCIAL FORECAST & PREDICTIVE YIELD MATRIX MODEL")
-    report.append("--------------------------------------------------------------------------")
-    
     detected_any = False
+    crop_blocks = []
+    
     for crop, data in AGRI_MASTER_DB['crop_blueprint'].items():
-        # Smart Keyword Evaluation Bridge
-        crop_keyword = crop.lower().split(' ')[0] # Catches 'Okra' from 'Okra (Bamia)'
+        crop_keyword = crop.lower().split(' ')[0]
         if crop_keyword in raw_text.lower() or "all" in raw_text.lower() or len(raw_text.strip()) < 10:
             detected_any = True
             total_plant_population = int(data['density_per_acre'] * target_acres)
             total_yield_tons = round(data['target_yield_per_acre_tons'] * target_acres, 2)
             projected_gross_revenue = float(total_yield_tons * 1000 * (data['base_price_tsh'] / 1000))
             
-            report.append(f"\n● CROP SYSTEM: {crop.upper()}")
-            report.append(f"  ▪ Recommended Plant Population Sizing: {total_plant_population:,} plants")
-            report.append(f"  ▪ Regional Spacing Configurations: {data['spacing']}")
-            report.append(f"  ▪ Expected Operational Harvest Output: {total_yield_tons:,} Tons")
-            report.append(f"  ▪ Projected Market Value Index Baseline: TSh {projected_gross_revenue:,.2f}")
+            cb = [
+                f"\n● CROP SYSTEM: {crop.upper()}",
+                f"  ▪ Recommended Plant Population Sizing: {total_plant_population:,} plants",
+                f"  ▪ Regional Spacing Configurations: {data['spacing']}",
+                f"  ▪ Expected Operational Harvest Output: {total_yield_tons:,} Tons",
+                f"  ▪ Projected Market Value Index Baseline: TSh {projected_gross_revenue:,.2f}"
+            ]
             
-    if not detected_any:
+            # Extract and inject the protection schedule layer if available for this specific crop
+            if crop in AGRI_MASTER_DB["protection_schedules"]:
+                cb.append("\n  ⚙️ ENTERPRISE PLANT PROTECTION PROTOCOLS (SCOUTING & INTERVENTION):")
+                for schedule in AGRI_MASTER_DB["protection_schedules"][crop]:
+                    cb.append(f"    ▪ [{schedule['phase']}] Target: {schedule['target']}")
+                    cb.append(f"      Intervention Strategy: {schedule['intervention']} | Field Rate: {schedule['rate']} | PHI Safety Window: {schedule['phi']}")
+            crop_blocks.append("\n".join(cb))
+            
+    report.append("\n--------------------------------------------------------------------------")
+    report.append("2. FINANCIAL FORECAST & PREDICTIVE YIELD MATRIX MODEL")
+    report.append("--------------------------------------------------------------------------")
+    
+    if detected_any:
+        report.append("\n".join(crop_blocks))
+    else:
         report.append("\n*Note: No custom crop targets matched your instructions file. Baseline metrics provided.*")
         
     return "\n".join(report)
@@ -249,13 +282,11 @@ def process_agricultural_matrix(uploaded_file, ext, target_acres, location_profi
 st.title("🧹 Universal Master Data Cleaning Hub")
 st.write("Upload any file type below. The unified script automatically smells data delimiters, parses columns, reformats documents, and builds field production blueprints.")
 
-# App Configuration Settings Sidebar
 st.sidebar.header("⚙️ System Control Panel")
 doc_style = st.sidebar.selectbox("Document Re-Styling Mode", ["Business", "Formal", "Non-Formal"])
 agri_scale = st.sidebar.number_input("Target Agricultural Scale (Acres)", min_value=0.5, max_value=500.0, value=1.0, step=0.5)
 agri_loc = st.sidebar.selectbox("Target Regional Zone", ["Mkuranga / Coast Region", "General / Standard Tropical"])
 
-# Unified File Upload Interface Element
 uploaded_file = st.file_uploader("Upload target ledger, contract, presentation text, or agricultural directive", type=["xlsx", "xls", "csv", "docx", "txt"])
 
 if uploaded_file is not None:
@@ -263,19 +294,17 @@ if uploaded_file is not None:
     _, ext = os.path.splitext(filename.lower())
     st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
     
-    # Pre-parse content check to redirect agricultural DOCX structures away from Engine 2
     is_agri_doc = False
     if ext == '.docx':
         try:
             check_doc = Document(uploaded_file)
-            uploaded_file.seek(0) # Reset stream position
+            uploaded_file.seek(0)
             full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
             if any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop"]):
                 is_agri_doc = True
         except:
             pass
 
-    # ROUTE 1: SPREADSHEETS & DATA LEDGERS
     if ext in ['.xlsx', '.xls', '.csv']:
         try:
             with st.spinner("Executing structural extraction algorithms..."):
@@ -295,18 +324,16 @@ if uploaded_file is not None:
         except Exception as e:
             st.error(f"Spreadsheet Clean Sub-system Fault: {str(e)}")
             
-    # ROUTE 2: AGRICULTURAL BLUEPRINTS (TXT & AGRI-DOCX)
     elif ext == '.txt' or is_agri_doc:
         try:
-            with st.spinner("Processing yield models against regional agronomy charts..."):
+            with st.spinner("Processing yield models with agronomy protection matrices..."):
                 agri_output_report = process_agricultural_matrix(uploaded_file, ext, agri_scale, agri_loc)
             st.subheader("👀 Preview Blueprint")
-            st.text_area("Generated Output File Data Display", value=agri_output_report, height=400)
+            st.text_area("Generated Output File Data Display", value=agri_output_report, height=500)
             st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
         except Exception as e:
             st.error(f"Agricultural Modeling Engine Fault: {str(e)}")
 
-    # ROUTE 3: CORPORATE TEXTS & REGULAR DOCUMENTS (STANDARD DOCX)
     elif ext == '.docx':
         try:
             with st.spinner("Normalizing text formatting layouts..."):
