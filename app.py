@@ -325,10 +325,11 @@ if uploaded_file is not None:
     _, ext = os.path.splitext(filename.lower())
     st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
 
+    # Safeguard memory stream across calculations via clean buffer clones
     file_bytes = BytesIO(uploaded_file.read())
     file_bytes.seek(0)
 
-    # Clean spreadsheet routing block
+    # 1. SPREADSHEETS ROUTING BLOCK (.csv, .xlsx, .xls)
     if ext in ['.xlsx', '.xls', '.csv']:
         try:
             with st.spinner("Executing structural extraction algorithms..."):
@@ -393,7 +394,7 @@ if uploaded_file is not None:
         except Exception as e: 
             st.error(f"Spreadsheet Clean Sub-system Fault: {str(e)}")
             
-    # Text routing block
+    # 2. RAW TEXT ROUTING BLOCK (.txt)
     elif ext == '.txt':
         try:
             with st.spinner("Processing text-based agricultural matrices..."):
@@ -404,17 +405,17 @@ if uploaded_file is not None:
         except Exception as e: 
             st.error(f"Agricultural Text Processor Fault: {str(e)}")
 
-    # Unified Word Document Routing Engine
+    # 3. WORD DOCUMENT ROUTING BLOCK (.docx)
     elif ext == '.docx':
         try:
-            # Check content internally to choose display options safely
+            # Check content safely inside this specific block
             check_doc = Document(file_bytes)
             full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
             is_agri_doc = any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"])
             file_bytes.seek(0)
             
             if is_agri_doc:
-                st.success("🌱 **Agricultural data keywords detected inside this Word Document.** Rendering tools below:")
+                st.success("🌱 **Agricultural data keywords detected inside this Word Document.**")
                 with st.spinner("Processing yield models with agronomy protection matrices..."):
                     agri_output_report = process_agricultural_matrix(file_bytes, ext, agri_scale, agri_loc)
                 st.subheader("👀 Preview Blueprint")
@@ -422,7 +423,7 @@ if uploaded_file is not None:
                 st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
                 st.markdown("---")
             
-            # Offer standard document processing layout tool as well
+            # Display document cleaning choices down below safely
             st.subheader("📝 Document Text Re-Styling Dashboard")
             with st.spinner("Normalizing text formatting layouts..."):
                 doc_stream = parse_and_reformat_document(file_bytes, doc_style)
