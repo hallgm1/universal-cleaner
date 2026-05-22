@@ -317,13 +317,13 @@ agri_loc = st.sidebar.selectbox("Target Regional Zone", ["Mkuranga / Coast Regio
 
 uploaded_file = st.file_uploader("Upload target ledger, contract, presentation text, or agricultural directive", type=["xlsx", "xls", "csv", "docx", "txt"])
 
-# SAFE ENTRY WALL: This block isolates execution until an active upload exists.
 if uploaded_file is not None:
+    # RE-ORDERED EXECUTION: Extract meta details instantly upon verification
     filename = uploaded_file.name
     _, ext = os.path.splitext(filename.lower())
     st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
 
-    # Safe local tracking context block
+    # Tracking variable context initialized safely after parsing the extension
     is_agri_doc = False
     if ext == '.docx':
         try:
