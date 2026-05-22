@@ -325,7 +325,7 @@ if uploaded_file is not None:
     _, ext = os.path.splitext(filename.lower())
     st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
 
-    # Safeguard memory stream across calculations via clean buffer clones
+    # Pure BytesIO object container initialization
     file_bytes = BytesIO(uploaded_file.read())
     file_bytes.seek(0)
 
@@ -417,6 +417,7 @@ if uploaded_file is not None:
             if is_agri_doc:
                 st.success("🌱 **Agricultural data keywords detected inside this Word Document.**")
                 with st.spinner("Processing yield models with agronomy protection matrices..."):
+                    # PASS ONLY THE RAW STREAM WITHOUT PACKAGING INTO TUPLES
                     agri_output_report = process_agricultural_matrix(file_bytes, ext, agri_scale, agri_loc)
                 st.subheader("👀 Preview Blueprint")
                 st.text_area("Generated Output File Data Display", value=agri_output_report, height=400)
