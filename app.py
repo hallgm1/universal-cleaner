@@ -7,22 +7,22 @@ from datetime import datetime, timedelta
 from io import BytesIO
 
 st.set_page_config(
-    page_title="Data Cleaner Pro",
+    page_title="Spreadsheet Cleaner Pro",
     page_icon="📊",
     layout="wide"
 )
 
-st.title("📊 Dedicated Spreadsheet Cleaning Tool")
-st.write("Upload any Excel or CSV ledger. This tool automatically handles variable column layouts, sanitizes headers, and builds custom dashboard analytics.")
+st.title("📊 Tool 1: Dedicated Spreadsheet Sanitizer")
+st.write("Upload any Excel or CSV ledger. This tool scales dynamically to your exact column count, cleans messy fields, and builds automatic dashboard trends.")
 
-def clean_spreadsheet(raw_bytes, ext):
+def clean_flexible_spreadsheet(raw_bytes, ext):
     stream = BytesIO(raw_bytes)
     if ext == '.csv':
         df = pd.read_csv(stream)
     else:
         df = pd.read_excel(stream, engine='openpyxl')
     
-    # Handle single-string collapsed lines
+    # 1. Handle single-column comma-collapsed data anomalies
     if len(df.columns) == 1:
         raw_col = df.columns[0]
         header_line = str(raw_col).replace('"', '').strip()
@@ -34,12 +34,18 @@ def clean_spreadsheet(raw_bytes, ext):
             row_cells = re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', row_str)
             split_rows.append([c.strip('"').strip() for c in row_cells])
             
-        df = pd.DataFrame(split_rows, columns=new_headers[:len(split_rows[0])])
+        # Ensure header list matches the actual row cell split length dynamically
+        max_cols = max([len(r) for r in split_rows]) if split_rows else len(new_headers)
+        if len(new_headers) < max_cols:
+            new_headers += [f"column_{i}" for i in range(len(new_headers), max_cols)]
+        df = pd.DataFrame(split_rows, columns=new_headers[:max_cols])
     else:
+        # Standardize existing headers natively without truncating length
         df.columns = [re.sub(r'[^a-zA-Z0-9_]', '_', str(col).strip().lower()) for col in df.columns]
     
     df.columns = [re.sub(r'_+', '_', col).strip('_') for col in df.columns]
 
+    # 2. Locate phone columns and apply uniform formatting
     phone_cols = [c for c in df.columns if any(k in c for k in ['phone', 'contact', 'tel', 'mobile', 'num'])]
     for col in phone_cols:
         def _pre_parse_phone(v):
@@ -51,6 +57,7 @@ def clean_spreadsheet(raw_bytes, ext):
             return s
         df[col] = df[col].apply(_pre_parse_phone)
 
+    # 3. Dynamic row parsing based on header content keywords
     for col in df.columns:
         if df[col].dtype == 'object' and col not in phone_cols:
             df[col] = df[col].astype(str).str.strip()
@@ -130,7 +137,7 @@ def clean_spreadsheet(raw_bytes, ext):
         
     return df
 
-uploaded_file = st.file_uploader("Upload target sheet ledger", type=["xlsx", "xls", "csv"])
+uploaded_file = st.file_uploader("Upload spreadsheet file", type=["xlsx", "xls", "csv"])
 
 if uploaded_file is not None:
     filename = str(uploaded_file.name)
@@ -138,34 +145,35 @@ if uploaded_file is not None:
     raw_file_content = uploaded_file.getvalue()
 
     try:
-        cleaned_df = clean_spreadsheet(raw_file_content, ext)
+        # Processes any file structure cleanly
+        cleaned_df = clean_flexible_spreadsheet(raw_file_content, ext)
         
-        # Display polished presentation headers
+        # Present clean display headers to the user interface
         display_df = cleaned_df.copy()
         formatted_headers = {col: re.sub(r'\s+', ' ', col.replace('_', ' ').strip()).title() for col in display_df.columns}
         display_df.rename(columns=formatted_headers, inplace=True)
         
-        st.subheader("👀 Cleaned Data Preview")
+        st.subheader("👀 Clean Data Preview")
         st.dataframe(display_df, use_container_width=True)
         
         out_buf = BytesIO()
         if ext == '.csv':
             display_df.to_csv(out_buf, index=False)
-            m_type, name_out = "text/csv", "cleaned_data.csv"
+            m_type, name_out = "text/csv", "cleaned_dataset.csv"
         else:
             display_df.to_excel(out_buf, index=False, engine='openpyxl')
-            m_type, name_out = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "cleaned_data.xlsx"
+            m_type, name_out = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "cleaned_dataset.xlsx"
         out_buf.seek(0)
         
-        st.download_button("📥 Download Cleaned Sheet", data=out_buf, file_name=name_out, mime=m_type, use_container_width=True)
+        st.download_button("📥 Download Cleaned File", data=out_buf, file_name=name_out, mime=m_type, use_container_width=True)
         
-        # Dynamic Analysis Engine - Checks dataset columns natively
+        # Sift and dynamically display analytics only if matching field classes exist
         sales_cols = [c for c in cleaned_df.columns if any(k in c for k in ['sales', 'amount', 'price', 'revenue', 'cost', 'total', 'salary'])]
         date_cols = [c for c in cleaned_df.columns if any(k in c for k in ['date', 'trans', 'hire'])]
         zone_cols = [c for c in cleaned_df.columns if any(k in c for k in ['zone', 'region', 'dept', 'business_unit', 'unit'])]
         
         st.markdown("---")
-        st.subheader("📊 Operational Analytics Metrics")
+        st.subheader("📊 Dynamic Financial Trends")
         
         if sales_cols:
             metric_df = cleaned_df.copy()
@@ -173,10 +181,10 @@ if uploaded_file is not None:
             
             c1, c2 = st.columns(2)
             c1.metric(label="Sum Value Volume", value=f"{metric_df[sales_cols[0]].sum():,.2f}")
-            c2.metric(label="Total Processed Records", value=f"{len(metric_df)} Valid Rows")
+            c2.metric(label="Processed Row Items", value=f"{len(metric_df)} Rows")
             
             if date_cols:
-                st.write("📈 **Financial Metrics Over Time**")
+                st.write("📈 **Volume Timeline**")
                 valid_dates = metric_df[metric_df[date_cols[0]] != 'Invalid Date'].copy()
                 if not valid_dates.empty:
                     valid_dates[date_cols[0]] = pd.to_datetime(valid_dates[date_cols[0]])
@@ -184,11 +192,11 @@ if uploaded_file is not None:
                     st.line_chart(data=trend, x=date_cols[0], y=sales_cols[0])
             
             if zone_cols:
-                st.write("🌍 **Categorical Distribution Breakdown**")
+                st.write("🌍 **Distribution Matrix**")
                 zone_chart = metric_df.groupby(zone_cols[0])[sales_cols[0]].sum().reset_index()
                 st.bar_chart(data=zone_chart, x=zone_cols[0], y=sales_cols[0])
         else:
-            st.info("ℹ️ Structural validation complete. Visual charts are minimized since no currency/numeric columns were found.")
+            st.info("ℹ️ Table verification complete. Metric panels are hidden because no transactional financial headers were found.")
             
     except Exception as e:
-        st.error(f"Spreadsheet Engine Fault: {str(e)}")
+        st.error(f"Spreadsheet System Fault: {str(e)}")
