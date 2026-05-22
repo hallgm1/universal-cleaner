@@ -73,7 +73,6 @@ def clean_spreadsheet(raw_bytes, ext):
     else:
         df = pd.read_excel(stream, engine='openpyxl')
     
-    # Check if we hit a malformed single-column comma string or normal grid
     if len(df.columns) == 1:
         raw_col = df.columns[0]
         header_line = str(raw_col).replace('"', '').strip()
@@ -90,17 +89,6 @@ def clean_spreadsheet(raw_bytes, ext):
         df.columns = [re.sub(r'[^a-zA-Z0-9_]', '_', str(col).strip().lower()) for col in df.columns]
     
     df.columns = [re.sub(r'_+', '_', col).strip('_') for col in df.columns]
-    
-    # Safeguard rule: If Excel brings in an unexpected unlabelled 9th column, filter out empty columns safely
-    if len(df.columns) > 8:
-        # Drop columns that are completely empty or unnamed first
-        unnamed_or_empty = [c for c in df.columns if 'unnamed' in c.lower() or df[c].isna().all()]
-        if unnamed_or_empty:
-            df.drop(columns=unnamed_or_empty, inplace=True)
-        
-        # If it still has more than 8 columns, safely slice to avoid breakdown downstream
-        if len(df.columns) > 8:
-            df = df.iloc[:, :8]
 
     phone_cols = [c for c in df.columns if any(k in c for k in ['phone', 'contact', 'tel', 'mobile', 'num'])]
     for col in phone_cols:
@@ -376,6 +364,7 @@ if uploaded_file is not None:
             st.markdown("---")
             st.subheader("📊 Executive Data Insights Dashboard")
             
+            # Formatically compute analytics only if target tracking columns are found
             if sales_cols:
                 metric_df = cleaned_df.copy()
                 metric_df[sales_cols[0]] = metric_df[sales_cols[0]].astype(str).str.replace(',', '').astype(float)
@@ -400,6 +389,9 @@ if uploaded_file is not None:
                     st.write("🌍 **Categorical Category Volume Split**")
                     zone_chart = metric_df.groupby(zone_cols[0])[sales_cols[0]].sum().reset_index()
                     st.bar_chart(data=zone_chart, x=zone_cols[0], y=sales_cols[0])
+            else:
+                # Fallback if no numeric value tracking targets are detected
+                st.info("ℹ️ Spreadsheet structures analyzed successfully. Visual analytics charts are muted since no matching currency, financial ledger tracking or sales headers were detected.")
                     
         except Exception as e: 
             st.error(f"Spreadsheet Clean Sub-system Fault: {str(e)}")
