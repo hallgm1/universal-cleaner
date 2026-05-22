@@ -3,25 +3,23 @@ with tab1:
     uploaded = st.file_uploader("Upload Ledger (.csv/.xlsx)", type=["csv", "xlsx"], key="spreadsheet_upload")
     
     if uploaded:
-        # Load data
-        if uploaded.name.endswith('.csv'):
-            df = pd.read_csv(uploaded)
-        else:
-            df = pd.read_excel(uploaded)
+        # Load the data
+        df = pd.read_csv(uploaded) if uploaded.name.endswith('.csv') else pd.read_excel(uploaded)
+        
+        # Target the specific salary column by partial match
+        target_col = [c for c in df.columns if 'salary' in c.lower() or 'usd' in c.lower()]
+        
+        if target_col:
+            col_name = target_col[0]
+            # 1. Force the entire column to be string
+            # 2. Remove commas, dollar signs, and non-numeric junk characters
+            # 3. Handle values with trailing dots or weird endings
+            df[col_name] = df[col_name].astype(str).str.replace(r'[^\d.]', '', regex=True)
             
-        # Refined Sanitization Engine
-        for col in df.columns:
-            if 'usd' in col.lower() or 'salary' in col.lower():
-                # 1. Convert to string
-                # 2. Remove commas
-                # 3. Use regex to keep only digits and the first decimal point
-                df[col] = df[col].astype(str).str.replace(',', '').str.extract(r'(\d+\.?\d*)')[0]
-                # 4. Force to numeric
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
-        
-        st.success("Data Sanitized Successfully")
-        st.dataframe(df, use_container_width=True)
-        
-        # Export
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("Download Sanitized Data", csv, "sanitized_data.csv", "text/csv")
+            # 4. Final conversion to numeric
+            df[col_name] = pd.to_numeric(df[col_name], errors='coerce')
+            
+            st.success(f"Sanitized Column: {col_name}")
+            st.dataframe(df.head(10), use_container_width=True)
+        else:
+            st.error("Could not find a column containing 'Salary' or 'USD'. Check your headers.")
