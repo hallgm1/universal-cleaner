@@ -315,6 +315,9 @@ doc_style = st.sidebar.selectbox("Document Re-Styling Mode", ["Business", "Forma
 agri_scale = st.sidebar.number_input("Target Agricultural Scale (Acres)", min_value=0.5, max_value=500.0, value=1.0, step=0.5)
 agri_loc = st.sidebar.selectbox("Target Regional Zone", ["Mkuranga / Coast Region", "General / Standard Tropical"])
 
+# CRITICAL SECURITY FIX: Initialize variable globally at the absolute runtime root sequence
+is_agri_doc = False
+
 uploaded_file = st.file_uploader("Upload target ledger, contract, presentation text, or agricultural directive", type=["xlsx", "xls", "csv", "docx", "txt"])
 
 if uploaded_file is not None:
@@ -322,15 +325,13 @@ if uploaded_file is not None:
     _, ext = os.path.splitext(filename.lower())
     st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
     
-    # Global Placement Fix: Safe Initialization across all operational contexts
-    is_agri_doc = False
-    
     if ext == '.docx':
         try:
             check_doc = Document(uploaded_file)
             uploaded_file.seek(0)
             full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
-            if any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"]): is_agri_doc = True
+            if any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"]): 
+                is_agri_doc = True
         except: pass
 
     if ext in ['.xlsx', '.xls', '.csv']:
@@ -338,12 +339,10 @@ if uploaded_file is not None:
             with st.spinner("Executing structural extraction algorithms..."):
                 cleaned_df = clean_spreadsheet(uploaded_file, ext)
             
-            # Safe Isolation Pass: Compute everything on stable lowercase keys
             sales_cols = [c for c in cleaned_df.columns if any(k in c for k in ['sales', 'amount', 'price', 'revenue', 'cost', 'total', 'salary'])]
             date_cols = [c for c in cleaned_df.columns if any(k in c for k in ['date', 'trans', 'hire'])]
             zone_cols = [c for c in cleaned_df.columns if any(k in c for k in ['zone', 'region', 'dept', 'business_unit', 'unit'])]
             
-            # Cosmetic Display Generator
             display_df = cleaned_df.copy()
             formatted_headers = {}
             for col in display_df.columns:
