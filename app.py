@@ -52,7 +52,7 @@ AGRI_MASTER_DB = {
         ],
         "Watermelon": [
             {"phase": "Seedling Emergence", "target": "Soil Insects & Damping Off", "intervention": "Metalaxyl drenching", "rate": "2g/L", "phi": "N/A"},
-            {"phase": "Vining / Vegetative", "target": "Melon Aphids & Thrips", "intervention": "Thiamethiam", "rate": "0.4g/L", "phi": "7 Days"},
+            {"phase": "Vining / Vegetative", "target": "Melon Aphids & Thrips", "intervention": "Thiamethoxam Compound Pass", "rate": "0.4g/L", "phi": "7 Days"},
             {"phase": "Flowering Block", "target": "Downy Mildew (Avoid pollinator disruption)", "intervention": "Propamocarb (Apply late afternoon)", "rate": "1.5ml/L", "phi": "3 Days"},
             {"phase": "Fruit Expansion", "target": "Fruit Flies & Anthracnose", "intervention": "Lambda-Cyhalothrin + Mancozeb", "rate": "0.5ml/L + 2g/L", "phi": "7 Days"}
         ],
@@ -294,9 +294,9 @@ def process_agricultural_matrix(uploaded_file, ext, target_acres, location_profi
             if crop in AGRI_MASTER_DB["protection_schedules"]:
                 cb.append("\n  ⚙️ TIMELINE MANAGEMENT & CROP CALENDAR SCHEDULING INTERVENTIONS:")
                 for schedule in AGRI_MASTER_DB["protection_schedules"][crop]:
-                    cb.append(f"    ▪ [{schedule['phase']}]")
-                    cb.append(f"      Target: {schedule['target']}")
-                    cb.append(f"      Action Plan: {schedule['intervention']} | Field Dosage Rate: {schedule['rate']} | PHI Window: {schedule['phi']}\n")
+                    cb.append(f"    ▪ [{str(schedule['phase'])}]")
+                    cb.append(f"      Target: {str(schedule['target'])}")
+                    cb.append(f"      Action Plan: {str(schedule['intervention'])} | Field Dosage Rate: {str(schedule['rate'])} | PHI Window: {str(schedule['phi'])}")
             crop_blocks.append("\n".join(cb))
             
     report.append("\n--------------------------------------------------------------------------")
@@ -339,7 +339,7 @@ if uploaded_file is not None:
             # Safe Isolation Pass: Compute everything on stable lowercase keys
             sales_cols = [c for c in cleaned_df.columns if any(k in c for k in ['sales', 'amount', 'price', 'revenue', 'cost', 'total', 'salary'])]
             date_cols = [c for c in cleaned_df.columns if any(k in c for k in ['date', 'trans', 'hire'])]
-            zone_cols = [c for c in cleaned_df.columns if any(k in c for k in ['zone', 'region', 'dept', 'business_unit'])]
+            zone_cols = [c for c in cleaned_df.columns if any(k in c for k in ['zone', 'region', 'dept', 'business_unit', 'unit'])]
             
             # Cosmetic Display Generator
             display_df = cleaned_df.copy()
