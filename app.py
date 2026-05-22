@@ -73,6 +73,7 @@ def clean_spreadsheet(raw_bytes, ext):
     else:
         df = pd.read_excel(stream, engine='openpyxl')
     
+    # Check if we hit a malformed single-column comma string or normal grid
     if len(df.columns) == 1:
         raw_col = df.columns[0]
         header_line = str(raw_col).replace('"', '').strip()
@@ -90,6 +91,17 @@ def clean_spreadsheet(raw_bytes, ext):
     
     df.columns = [re.sub(r'_+', '_', col).strip('_') for col in df.columns]
     
+    # Safeguard rule: If Excel brings in an unexpected unlabelled 9th column, filter out empty columns safely
+    if len(df.columns) > 8:
+        # Drop columns that are completely empty or unnamed first
+        unnamed_or_empty = [c for c in df.columns if 'unnamed' in c.lower() or df[c].isna().all()]
+        if unnamed_or_empty:
+            df.drop(columns=unnamed_or_empty, inplace=True)
+        
+        # If it still has more than 8 columns, safely slice to avoid breakdown downstream
+        if len(df.columns) > 8:
+            df = df.iloc[:, :8]
+
     phone_cols = [c for c in df.columns if any(k in c for k in ['phone', 'contact', 'tel', 'mobile', 'num'])]
     for col in phone_cols:
         def _pre_parse_phone(v):
