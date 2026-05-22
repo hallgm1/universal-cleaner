@@ -258,7 +258,6 @@ def process_agricultural_matrix(file_bytes, ext, target_acres, location_profile)
     file_bytes.seek(0)
     if ext == '.docx':
         doc = Document(file_bytes)
-        # FIX: Explicit assignment here establishes 'raw_text' in local execution bounds instantly
         raw_text = "\n".join([p.text for p in doc.paragraphs])
     else:
         raw_text = file_bytes.read().decode("utf-8", errors="ignore")
@@ -329,17 +328,7 @@ if uploaded_file is not None:
     file_bytes = BytesIO(uploaded_file.read())
     file_bytes.seek(0)
 
-    is_agri_doc = False
-    if ext == '.docx':
-        try:
-            check_doc = Document(file_bytes)
-            full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
-            if any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"]):
-                is_agri_doc = True
-            file_bytes.seek(0)
-        except:
-            pass
-
+    # Clean spreadsheet routing block
     if ext in ['.xlsx', '.xls', '.csv']:
         try:
             with st.spinner("Executing structural extraction algorithms..."):
@@ -404,22 +393,41 @@ if uploaded_file is not None:
         except Exception as e: 
             st.error(f"Spreadsheet Clean Sub-system Fault: {str(e)}")
             
-    elif ext == '.txt' or is_agri_doc:
+    # Text routing block
+    elif ext == '.txt':
         try:
-            with st.spinner("Processing yield models with agronomy protection matrices..."):
+            with st.spinner("Processing text-based agricultural matrices..."):
                 agri_output_report = process_agricultural_matrix(file_bytes, ext, agri_scale, agri_loc)
             st.subheader("👀 Preview Blueprint")
             st.text_area("Generated Output File Data Display", value=agri_output_report, height=500)
             st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
         except Exception as e: 
-            st.error(f"Agricultural Modeling Engine Fault: {str(e)}")
+            st.error(f"Agricultural Text Processor Fault: {str(e)}")
 
+    # Unified Word Document Routing Engine
     elif ext == '.docx':
         try:
+            # Check content internally to choose display options safely
+            check_doc = Document(file_bytes)
+            full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
+            is_agri_doc = any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"])
+            file_bytes.seek(0)
+            
+            if is_agri_doc:
+                st.success("🌱 **Agricultural data keywords detected inside this Word Document.** Rendering tools below:")
+                with st.spinner("Processing yield models with agronomy protection matrices..."):
+                    agri_output_report = process_agricultural_matrix(file_bytes, ext, agri_scale, agri_loc)
+                st.subheader("👀 Preview Blueprint")
+                st.text_area("Generated Output File Data Display", value=agri_output_report, height=400)
+                st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
+                st.markdown("---")
+            
+            # Offer standard document processing layout tool as well
+            st.subheader("📝 Document Text Re-Styling Dashboard")
             with st.spinner("Normalizing text formatting layouts..."):
                 doc_stream = parse_and_reformat_document(file_bytes, doc_style)
-            st.subheader("👀 Preview Status")
-            st.success(f"Document content parsed successfully. Spacing layouts corrected, and language set to **{doc_style.upper()}** parameters.")
-            st.download_button(f"📥 Download Formatted {doc_style} Document", data=doc_stream, file_name="cleaned_master_document.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+            st.info(f"Word file content parsed smoothly. Spacing structural layouts corrected to matching **{doc_style.upper()}** criteria specifications.")
+            st.download_button(f"📥 Download Formatted {doc_style} Document (.docx)", data=doc_stream, file_name="cleaned_master_document.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+            
         except Exception as e: 
-            st.error(f"Text Processing Engine Fault: {str(e)}")
+            st.error(f"Document Multi-Engine Processing Fault: {str(e)}")
