@@ -52,7 +52,7 @@ AGRI_MASTER_DB = {
         ],
         "Watermelon": [
             {"phase": "Seedling Emergence", "target": "Soil Insects & Damping Off", "intervention": "Metalaxyl drenching", "rate": "2g/L", "phi": "N/A"},
-            {"phase": "Vining / Vegetative", "target": "Melon Aphids & Thrips", "intervention": "Thiamethoxam", "rate": "0.4g/L", "phi": "7 Days"},
+            {"phase": "Vining / Vegetative", "target": "Melon Aphids & Thrips", "intervention": "Thiamethiam", "rate": "0.4g/L", "phi": "7 Days"},
             {"phase": "Flowering Block", "target": "Downy Mildew (Avoid pollinator disruption)", "intervention": "Propamocarb (Apply late afternoon)", "rate": "1.5ml/L", "phi": "3 Days"},
             {"phase": "Fruit Expansion", "target": "Fruit Flies & Anthracnose", "intervention": "Lambda-Cyhalothrin + Mancozeb", "rate": "0.5ml/L + 2g/L", "phi": "7 Days"}
         ],
@@ -145,7 +145,7 @@ def clean_spreadsheet(uploaded_file, ext):
                                 m = int(parts[1].strip())
                                 d = int(parts[2].strip())
                                 if m <= 12 and d <= 31: return f"{y}-{m:02d}-{d:02d}"
-                                if d <= 12 and m <= 31: return f"{y}-{d:02d}-{m:02d}" # Flipped safety catch
+                                if d <= 12 and m <= 31: return f"{y}-{d:02d}-{m:02d}"
                             
                             p1 = int(parts[0].strip())
                             p2 = int(parts[1].strip())
@@ -281,4 +281,135 @@ def process_agricultural_matrix(uploaded_file, ext, target_acres, location_profi
         if crop_keyword in raw_text.lower() or "all" in raw_text.lower() or len(raw_text.strip()) < 10:
             detected_any = True
             total_plant_population = int(data['density_per_acre'] * target_acres)
-            total_yield_tons = round(data
+            total_yield_tons = round(data['target_yield_per_acre_tons'] * target_acres, 2)
+            projected_gross_revenue = float(total_yield_tons * 1000 * (data['base_price_tsh'] / 1000))
+            
+            cb = [
+                f"\n● CROP SYSTEM: {crop.upper()}",
+                f"  ▪ Recommended Plant Population Sizing: {total_plant_population:,} plants",
+                f"  ▪ Regional Spacing Configurations: {data['spacing']}",
+                f"  ▪ Expected Operational Harvest Output: {total_yield_tons:,} Tons",
+                f"  ▪ Projected Market Value Index Baseline: TSh {projected_gross_revenue:,.2f}"
+            ]
+            if crop in AGRI_MASTER_DB["protection_schedules"]:
+                cb.append("\n  ⚙️ TIMELINE MANAGEMENT & CROP CALENDAR SCHEDULING INTERVENTIONS:")
+                for schedule in AGRI_MASTER_DB["protection_schedules"][crop]:
+                    cb.append(f"    ▪ [{schedule['phase']}]")
+                    cb.append(f"      Target: {schedule['target']}")
+                    cb.append(f"      Action Plan: {schedule['intervention']} | Field Dosage Rate: {schedule['rate']} | PHI Window: {schedule['phi']}\n")
+            crop_blocks.append("\n".join(cb))
+            
+    report.append("\n--------------------------------------------------------------------------")
+    report.append("2. FINANCIAL FORECAST & PREDICTIVE YIELD MATRIX MODEL")
+    report.append("--------------------------------------------------------------------------")
+    if detected_any: report.append("\n".join(crop_blocks))
+    else: report.append("\n*Note: No custom crop targets matched your instructions file. Baseline metrics provided.*")
+    return "\n".join(report)
+
+# --- INTERACTIVE USER INTERFACE CONSOLE ---
+st.title("🧹 Universal Master Data Cleaning Hub")
+st.write("Upload any file type below. The unified script automatically smells data delimiters, parses columns, reformats documents, and builds field production blueprints.")
+
+st.sidebar.header("⚙️ System Control Panel")
+doc_style = st.sidebar.selectbox("Document Re-Styling Mode", ["Business", "Formal", "Non-Formal"])
+agri_scale = st.sidebar.number_input("Target Agricultural Scale (Acres)", min_value=0.5, max_value=500.0, value=1.0, step=0.5)
+agri_loc = st.sidebar.selectbox("Target Regional Zone", ["Mkuranga / Coast Region", "General / Standard Tropical"])
+
+uploaded_file = st.file_uploader("Upload target ledger, contract, presentation text, or agricultural directive", type=["xlsx", "xls", "csv", "docx", "txt"])
+
+if uploaded_file is not None:
+    filename = uploaded_file.name
+    _, ext = os.path.splitext(filename.lower())
+    st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
+    
+    is_agri_doc = False
+    if ext == '.docx':
+        try:
+            check_doc = Document(uploaded_file)
+            uploaded_file.seek(0)
+            full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
+            if any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"]): is_agri_doc = True
+        except: pass
+
+    if ext in ['.xlsx', '.xls', '.csv']:
+        try:
+            with st.spinner("Executing structural extraction algorithms..."):
+                cleaned_df = clean_spreadsheet(uploaded_file, ext)
+            
+            # Safe Isolation Pass: Compute everything on stable lowercase keys
+            sales_cols = [c for c in cleaned_df.columns if any(k in c for k in ['sales', 'amount', 'price', 'revenue', 'cost', 'total', 'salary'])]
+            date_cols = [c for c in cleaned_df.columns if any(k in c for k in ['date', 'trans', 'hire'])]
+            zone_cols = [c for c in cleaned_df.columns if any(k in c for k in ['zone', 'region', 'dept', 'business_unit'])]
+            
+            # Cosmetic Display Generator
+            display_df = cleaned_df.copy()
+            formatted_headers = {}
+            for col in display_df.columns:
+                cleaned_header = col.replace('_', ' ').strip()
+                cleaned_header = re.sub(r'\s+', ' ', cleaned_header)
+                if cleaned_header.lower() in ['sno', 'id', 'eeid', 'ee id']:
+                    formatted_headers[col] = cleaned_header.upper()
+                else:
+                    formatted_headers[col] = cleaned_header.title()
+            display_df.rename(columns=formatted_headers, inplace=True)
+            
+            st.subheader("👀 Preview Cleaned Grid")
+            st.dataframe(display_df, use_container_width=True)
+            
+            out_buf = BytesIO()
+            if ext == '.csv':
+                display_df.to_csv(out_buf, index=False)
+                m_type, name_out = "text/csv", "cleaned_master_spreadsheet.csv"
+            else:
+                display_df.to_excel(out_buf, index=False, engine='openpyxl')
+                m_type, name_out = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "cleaned_master_spreadsheet.xlsx"
+            out_buf.seek(0)
+            st.download_button("📥 Download Cleaned Spreadsheet", data=out_buf, file_name=name_out, mime=m_type, use_container_width=True)
+            
+            st.markdown("---")
+            st.subheader("📊 Executive Data Insights Dashboard")
+            
+            if sales_cols:
+                metric_df = cleaned_df.copy()
+                metric_df[sales_cols[0]] = metric_df[sales_cols[0]].astype(str).str.replace(',', '').astype(float)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    total_vol = metric_df[sales_cols[0]].sum()
+                    st.metric(label="Validated Volume Summary", value=f"{total_vol:,.2f}")
+                with col2:
+                    total_records = len(metric_df)
+                    st.metric(label="Total Cleaned Safe Records", value=f"{total_records} Active Rows")
+                
+                if date_cols:
+                    st.write("📈 **Data Volume Metric Over Time**")
+                    valid_dates_df = metric_df[metric_df[date_cols[0]] != 'Invalid Date'].copy()
+                    if not valid_dates_df.empty:
+                        valid_dates_df[date_cols[0]] = pd.to_datetime(valid_dates_df[date_cols[0]])
+                        time_trend = valid_dates_df.groupby(date_cols[0])[sales_cols[0]].sum().reset_index()
+                        st.line_chart(data=time_trend, x=date_cols[0], y=sales_cols[0])
+                    
+                if zone_cols:
+                    st.write("🌍 **Categorical Category Volume Split**")
+                    zone_chart = metric_df.groupby(zone_cols[0])[sales_cols[0]].sum().reset_index()
+                    st.bar_chart(data=zone_chart, x=zone_cols[0], y=sales_cols[0])
+                    
+        except Exception as e: st.error(f"Spreadsheet Clean Sub-system Fault: {str(e)}")
+            
+    elif ext == '.txt' or is_agri_doc:
+        try:
+            with st.spinner("Processing yield models with agronomy protection matrices..."):
+                agri_output_report = process_agricultural_matrix(uploaded_file, ext, agri_scale, agri_loc)
+            st.subheader("👀 Preview Blueprint")
+            st.text_area("Generated Output File Data Display", value=agri_output_report, height=500)
+            st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
+        except Exception as e: st.error(f"Agricultural Modeling Engine Fault: {str(e)}")
+
+    elif ext == '.docx':
+        try:
+            with st.spinner("Normalizing text formatting layouts..."):
+                doc_stream = parse_and_reformat_document(uploaded_file, doc_style)
+            st.subheader("👀 Preview Status")
+            st.success(f"Document content parsed successfully. Spacing layouts corrected, and language set to **{doc_style.upper()}** parameters.")
+            st.download_button(f"📥 Download Formatted {doc_style} Document", data=doc_stream, file_name="cleaned_master_document.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+        except Exception as e: st.error(f"Text Processing Engine Fault: {str(e)}")
