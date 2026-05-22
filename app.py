@@ -322,7 +322,9 @@ if uploaded_file is not None:
     _, ext = os.path.splitext(filename.lower())
     st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
     
+    # Global Placement Fix: Safe Initialization across all operational contexts
     is_agri_doc = False
+    
     if ext == '.docx':
         try:
             check_doc = Document(uploaded_file)
