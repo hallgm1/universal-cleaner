@@ -315,24 +315,12 @@ doc_style = st.sidebar.selectbox("Document Re-Styling Mode", ["Business", "Forma
 agri_scale = st.sidebar.number_input("Target Agricultural Scale (Acres)", min_value=0.5, max_value=500.0, value=1.0, step=0.5)
 agri_loc = st.sidebar.selectbox("Target Regional Zone", ["Mkuranga / Coast Region", "General / Standard Tropical"])
 
-# CRITICAL SECURITY FIX: Initialize variable globally at the absolute runtime root sequence
-is_agri_doc = False
-
 uploaded_file = st.file_uploader("Upload target ledger, contract, presentation text, or agricultural directive", type=["xlsx", "xls", "csv", "docx", "txt"])
 
 if uploaded_file is not None:
     filename = uploaded_file.name
     _, ext = os.path.splitext(filename.lower())
     st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
-    
-    if ext == '.docx':
-        try:
-            check_doc = Document(uploaded_file)
-            uploaded_file.seek(0)
-            full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
-            if any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"]): 
-                is_agri_doc = True
-        except: pass
 
     if ext in ['.xlsx', '.xls', '.csv']:
         try:
@@ -397,7 +385,7 @@ if uploaded_file is not None:
                     
         except Exception as e: st.error(f"Spreadsheet Clean Sub-system Fault: {str(e)}")
             
-    elif ext == '.txt' or is_agri_doc:
+    elif ext == '.txt' or (ext == '.docx' and any(k in filename.lower() for k in ["directive", "okra", "harvest", "field", "blueprint", "crop", "onion", "kitunguu"])):
         try:
             with st.spinner("Processing yield models with agronomy protection matrices..."):
                 agri_output_report = process_agricultural_matrix(uploaded_file, ext, agri_scale, agri_loc)
