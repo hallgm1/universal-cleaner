@@ -245,7 +245,7 @@ def parse_and_reformat_document(raw_bytes, selected_style):
             
         cleaned_doc.add_paragraph(txt)
         
-    if is_letter and selected_style in ["Business", "Formal"]:
+    if is_letter abatement and selected_style in ["Business", "Formal"]:
         cleaned_doc.add_paragraph("\nYours faithfully,\n\n\n_______________________\n[Insert Full Account Name]\nClaimant / Account Holder")
         
     out = BytesIO()
@@ -321,12 +321,12 @@ agri_loc = st.sidebar.selectbox("Target Regional Zone", ["Mkuranga / Coast Regio
 uploaded_file = st.file_uploader("Upload target ledger, contract, presentation text, or agricultural directive", type=["xlsx", "xls", "csv", "docx", "txt"])
 
 if uploaded_file is not None:
-    # CRITICAL FIX: Explicitly enforce string reading of file names and force-convert custom upload stream values to pure bytes array
+    # CLEAN EXTENSION SPLIT - NO MULTI-ASSIGNMENT POINTER CORRUPTION
     filename = str(uploaded_file.name)
-    base_name, ext = os.path.splitext(filename.lower())
+    ext = os.path.splitext(filename.lower())[1]
     st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
 
-    # Force snapshot copy of raw bytes instantly to avoid any pointer state corruption
+    # Force immediate structural safe snapshot read
     raw_file_content = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
 
     # 1. SPREADSHEETS ROUTING BLOCK (.csv, .xlsx, .xls)
@@ -408,7 +408,6 @@ if uploaded_file is not None:
     # 3. WORD DOCUMENT ROUTING BLOCK (.docx)
     elif ext == '.docx':
         try:
-            # Safely analyze Word elements inside a localized IO ecosystem copy
             check_doc = Document(BytesIO(raw_file_content))
             full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
             is_agri_doc = any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"])
