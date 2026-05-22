@@ -321,12 +321,13 @@ agri_loc = st.sidebar.selectbox("Target Regional Zone", ["Mkuranga / Coast Regio
 uploaded_file = st.file_uploader("Upload target ledger, contract, presentation text, or agricultural directive", type=["xlsx", "xls", "csv", "docx", "txt"])
 
 if uploaded_file is not None:
-    filename = uploaded_file.name
-    _, ext = os.path.splitext(filename.lower())
+    # CRITICAL FIX: Explicitly enforce string reading of file names and force-convert custom upload stream values to pure bytes array
+    filename = str(uploaded_file.name)
+    base_name, ext = os.path.splitext(filename.lower())
     st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
 
-    # READ INTO PURE IMMUTABLE BYTES VAL ONCE. NO MORE MUTABLE STREAMS PASSING!
-    raw_file_content = uploaded_file.read()
+    # Force snapshot copy of raw bytes instantly to avoid any pointer state corruption
+    raw_file_content = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
 
     # 1. SPREADSHEETS ROUTING BLOCK (.csv, .xlsx, .xls)
     if ext in ['.xlsx', '.xls', '.csv']:
@@ -407,7 +408,7 @@ if uploaded_file is not None:
     # 3. WORD DOCUMENT ROUTING BLOCK (.docx)
     elif ext == '.docx':
         try:
-            # Check text securely without corrupting variables
+            # Safely analyze Word elements inside a localized IO ecosystem copy
             check_doc = Document(BytesIO(raw_file_content))
             full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
             is_agri_doc = any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"])
