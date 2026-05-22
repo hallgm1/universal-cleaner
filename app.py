@@ -114,20 +114,23 @@ def clean_spreadsheet(uploaded_file, ext):
                 return s.strip()
             df[col] = df[col].apply(_clean_name)
             
-        elif any(keyword in col for keyword in ['sales', 'amount', 'price', 'revenue', 'cost', 'yield', 'finance', 'total']):
+        elif any(keyword in col for keyword in ['sales', 'amount', 'price', 'revenue', 'cost', 'yield', 'finance', 'total', 'salary']):
             def _currency_formatter(v):
                 if pd.isna(v) or str(v).strip() in ['-', '']: return "0.00"
                 s = re.sub(r'[^0-9.]', '', str(v).lower())
                 if s == '' or s == '.': return "0.00"
-                num_val = float(s) if '.' in s else int(s)
-                return f"{num_val:,.2f}"
+                try:
+                    num_val = float(s)
+                    return f"{num_val:,.2f}"
+                except ValueError:
+                    return "0.00"
             df[col] = df[col].apply(_currency_formatter)
             
-        elif any(keyword in col for keyword in ['date', 'trans']):
+        elif any(keyword in col for keyword in ['date', 'trans', 'hire', 'exit']):
             def _date_fix(v):
-                if pd.isna(v) or str(v).strip() == '': return "Invalid Date"
+                if pd.isna(v) or str(v).strip() == '' or str(v).lower() in ['nan', 'none', '-']: return "Invalid Date"
                 s = str(v).strip().lower().replace('.', '-')
-                current_time = datetime(2026, 5, 21)
+                current_time = datetime(2026, 5, 22)
                 
                 if 'yesterday' in s: return (current_time - timedelta(days=1)).strftime('%Y-%m-%d')
                 if 'today' in s or 'now' in s: return current_time.strftime('%Y-%m-%d')
@@ -141,15 +144,16 @@ def clean_spreadsheet(uploaded_file, ext):
                                 y = int(parts[0].strip())
                                 m = int(parts[1].strip())
                                 d = int(parts[2].strip())
-                                return f"{y}-{m:02d}-{d:02d}"
+                                if m <= 12 and d <= 31: return f"{y}-{m:02d}-{d:02d}"
+                                if d <= 12 and m <= 31: return f"{y}-{d:02d}-{m:02d}" # Flipped safety catch
                             
                             p1 = int(parts[0].strip())
                             p2 = int(parts[1].strip())
                             p3 = int(parts[2].strip())
                             y = 2000 + p3 if p3 < 100 else p3
                             
-                            if p1 <= 31 and p2 <= 12:
-                                return f"{y}-{p2:02d}-{p1:02d}"
+                            if p1 <= 31 and p2 <= 12: return f"{y}-{p2:02d}-{p1:02d}"
+                            if p2 <= 31 and p1 <= 12: return f"{y}-{p1:02d}-{p2:02d}"
                         except ValueError:
                             pass
                 
@@ -174,10 +178,6 @@ def clean_spreadsheet(uploaded_file, ext):
         valid_phone_col = phone_cols[0]
         df = df.loc[~(df[valid_phone_col].duplicated(keep='first') & (df[valid_phone_col] != ""))]
         
-    date_cols = [c for c in df.columns if any(k in c for k in ['date', 'trans'])]
-    if date_cols:
-        df = df[df[date_cols[0]] != 'Invalid Date']
-        
     return df
 
 # --- ENGINE 2: DOCUMENT PROCESSING & STYLE ADAPTER ---
@@ -194,7 +194,7 @@ def parse_and_reformat_document(uploaded_file, selected_style):
     
     if is_letter and selected_style in ["Business", "Formal"]:
         cleaned_doc.add_paragraph("[SENDER CONTACT DETAILS]\n[Postal Address Line 1]\nDar es Salaam, Tanzania\n")
-        cleaned_doc.add_paragraph(f"Date: May 21, 2026\n")
+        cleaned_doc.add_paragraph(f"Date: May 22, 2026\n")
     else:
         cleaned_doc.add_heading(f"REFORMATTED BUSINESS ARTIFACT - STYLE: {selected_style.upper()}", level=1)
         
@@ -278,133 +278,7 @@ def process_agricultural_matrix(uploaded_file, ext, target_acres, location_profi
     
     for crop, data in AGRI_MASTER_DB['crop_blueprint'].items():
         crop_keyword = crop.lower().split(' ')[0]
-        # Auto-match if text matches, or fallback if analyzing empty instructions file
         if crop_keyword in raw_text.lower() or "all" in raw_text.lower() or len(raw_text.strip()) < 10:
             detected_any = True
             total_plant_population = int(data['density_per_acre'] * target_acres)
-            total_yield_tons = round(data['target_yield_per_acre_tons'] * target_acres, 2)
-            projected_gross_revenue = float(total_yield_tons * 1000 * (data['base_price_tsh'] / 1000))
-            
-            cb = [
-                f"\n● CROP SYSTEM: {crop.upper()}",
-                f"  ▪ Recommended Plant Population Sizing: {total_plant_population:,} plants",
-                f"  ▪ Regional Spacing Configurations: {data['spacing']}",
-                f"  ▪ Expected Operational Harvest Output: {total_yield_tons:,} Tons",
-                f"  ▪ Projected Market Value Index Baseline: TSh {projected_gross_revenue:,.2f}"
-            ]
-            if crop in AGRI_MASTER_DB["protection_schedules"]:
-                cb.append("\n  ⚙️ TIMELINE MANAGEMENT & CROP CALENDAR SCHEDULING INTERVENTIONS:")
-                for schedule in AGRI_MASTER_DB["protection_schedules"][crop]:
-                    cb.append(f"    ▪ [{schedule['phase']}]")
-                    cb.append(f"      Target: {schedule['target']}")
-                    cb.append(f"      Action Plan: {schedule['intervention']} | Field Dosage Rate: {schedule['rate']} | PHI Window: {schedule['phi']}\n")
-            crop_blocks.append("\n".join(cb))
-            
-    report.append("\n--------------------------------------------------------------------------")
-    report.append("2. FINANCIAL FORECAST & PREDICTIVE YIELD MATRIX MODEL")
-    report.append("--------------------------------------------------------------------------")
-    if detected_any: report.append("\n".join(crop_blocks))
-    else: report.append("\n*Note: No custom crop targets matched your instructions file. Baseline metrics provided.*")
-    return "\n".join(report)
-
-# --- INTERACTIVE USER INTERFACE CONSOLE ---
-st.title("🧹 Universal Master Data Cleaning Hub")
-st.write("Upload any file type below. The unified script automatically smells data delimiters, parses columns, reformats documents, and builds field production blueprints.")
-
-st.sidebar.header("⚙️ System Control Panel")
-doc_style = st.sidebar.selectbox("Document Re-Styling Mode", ["Business", "Formal", "Non-Formal"])
-agri_scale = st.sidebar.number_input("Target Agricultural Scale (Acres)", min_value=0.5, max_value=500.0, value=1.0, step=0.5)
-agri_loc = st.sidebar.selectbox("Target Regional Zone", ["Mkuranga / Coast Region", "General / Standard Tropical"])
-
-uploaded_file = st.file_uploader("Upload target ledger, contract, presentation text, or agricultural directive", type=["xlsx", "xls", "csv", "docx", "txt"])
-
-if uploaded_file is not None:
-    filename = uploaded_file.name
-    _, ext = os.path.splitext(filename.lower())
-    st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
-    
-    is_agri_doc = False
-    if ext == '.docx':
-        try:
-            check_doc = Document(uploaded_file)
-            uploaded_file.seek(0)
-            full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
-            if any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"]): is_agri_doc = True
-        except: pass
-
-    if ext in ['.xlsx', '.xls', '.csv']:
-        try:
-            with st.spinner("Executing structural extraction algorithms..."):
-                cleaned_df = clean_spreadsheet(uploaded_file, ext)
-            
-            display_df = cleaned_df.copy()
-            formatted_headers = {}
-            for col in display_df.columns:
-                if col == 'sno':
-                    formatted_headers[col] = 'S.No.'
-                else:
-                    formatted_headers[col] = col.replace('_', ' ').title()
-            display_df.rename(columns=formatted_headers, inplace=True)
-            
-            st.subheader("👀 Preview Cleaned Grid")
-            st.dataframe(display_df, use_container_width=True)
-            
-            out_buf = BytesIO()
-            if ext == '.csv':
-                display_df.to_csv(out_buf, index=False)
-                m_type, name_out = "text/csv", "cleaned_master_spreadsheet.csv"
-            else:
-                display_df.to_excel(out_buf, index=False, engine='openpyxl')
-                m_type, name_out = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "cleaned_master_spreadsheet.xlsx"
-            out_buf.seek(0)
-            st.download_button("📥 Download Cleaned Spreadsheet", data=out_buf, file_name=name_out, mime=m_type, use_container_width=True)
-            
-            st.markdown("---")
-            st.subheader("📊 Executive Data Insights Dashboard")
-            
-            sales_cols = [c for c in cleaned_df.columns if any(k in c for k in ['sales', 'amount', 'price', 'revenue', 'cost', 'total'])]
-            date_cols = [c for c in cleaned_df.columns if any(k in c for k in ['date', 'trans'])]
-            zone_cols = [c for c in cleaned_df.columns if 'zone' in c or 'region' in c]
-            
-            if sales_cols:
-                metric_df = cleaned_df.copy()
-                metric_df[sales_cols[0]] = metric_df[sales_cols[0]].astype(str).str.replace(',', '').astype(float)
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    total_vol = metric_df[sales_cols[0]].sum()
-                    st.metric(label="Validated Transaction Volume", value=f"TSh {total_vol:,.2f}")
-                with col2:
-                    total_records = len(metric_df)
-                    st.metric(label="Total Cleaned Safe Records", value=f"{total_records} Active Rows")
-                
-                if date_cols:
-                    st.write("📈 **Transaction Volume Vector Over Time**")
-                    metric_df[date_cols[0]] = pd.to_datetime(metric_df[date_cols[0]])
-                    time_trend = metric_df.groupby(date_cols[0])[sales_cols[0]].sum().reset_index()
-                    st.line_chart(data=time_trend, x=date_cols[0], y=sales_cols[0])
-                    
-                if zone_cols:
-                    st.write("🌍 **Regional Revenue Breakdown Matrix**")
-                    zone_chart = metric_df.groupby(zone_cols[0])[sales_cols[0]].sum().reset_index()
-                    st.bar_chart(data=zone_chart, x=zone_cols[0], y=sales_cols[0])
-                    
-        except Exception as e: st.error(f"Spreadsheet Clean Sub-system Fault: {str(e)}")
-            
-    elif ext == '.txt' or is_agri_doc:
-        try:
-            with st.spinner("Processing yield models with agronomy protection matrices..."):
-                agri_output_report = process_agricultural_matrix(uploaded_file, ext, agri_scale, agri_loc)
-            st.subheader("👀 Preview Blueprint")
-            st.text_area("Generated Output File Data Display", value=agri_output_report, height=500)
-            st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
-        except Exception as e: st.error(f"Agricultural Modeling Engine Fault: {str(e)}")
-
-    elif ext == '.docx':
-        try:
-            with st.spinner("Normalizing text formatting layouts..."):
-                doc_stream = parse_and_reformat_document(uploaded_file, doc_style)
-            st.subheader("👀 Preview Status")
-            st.success(f"Document content parsed successfully. Spacing layouts corrected, and language set to **{doc_style.upper()}** parameters.")
-            st.download_button(f"📥 Download Formatted {doc_style} Document", data=doc_stream, file_name="cleaned_master_document.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
-        except Exception as e: st.error(f"Text Processing Engine Fault: {str(e)}")
+            total_yield_tons = round(data
