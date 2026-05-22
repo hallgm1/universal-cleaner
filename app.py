@@ -66,12 +66,12 @@ AGRI_MASTER_DB = {
 }
 
 # --- ENGINE 1: DATA CLEANER & STRUCTURAL AUDITOR ---
-def clean_spreadsheet(file_bytes, ext):
-    file_bytes.seek(0)
+def clean_spreadsheet(raw_bytes, ext):
+    stream = BytesIO(raw_bytes)
     if ext == '.csv':
-        df = pd.read_csv(file_bytes)
+        df = pd.read_csv(stream)
     else:
-        df = pd.read_excel(file_bytes, engine='openpyxl')
+        df = pd.read_excel(stream, engine='openpyxl')
     
     if len(df.columns) == 1:
         raw_col = df.columns[0]
@@ -182,9 +182,9 @@ def clean_spreadsheet(file_bytes, ext):
     return df
 
 # --- ENGINE 2: DOCUMENT PROCESSING & STYLE ADAPTER ---
-def parse_and_reformat_document(file_bytes, selected_style):
-    file_bytes.seek(0)
-    doc = Document(file_bytes)
+def parse_and_reformat_document(raw_bytes, selected_style):
+    stream = BytesIO(raw_bytes)
+    doc = Document(stream)
     cleaned_doc = Document()
     raw_paras = []
     for p in doc.paragraphs:
@@ -251,16 +251,16 @@ def parse_and_reformat_document(file_bytes, selected_style):
     out = BytesIO()
     cleaned_doc.save(out)
     out.seek(0)
-    return out
+    return out.getvalue()
 
 # --- ENGINE 3: AGRICULTURAL MODELER & CALCULATOR ---
-def process_agricultural_matrix(file_bytes, ext, target_acres, location_profile):
-    file_bytes.seek(0)
+def process_agricultural_matrix(raw_bytes, ext, target_acres, location_profile):
     if ext == '.docx':
-        doc = Document(file_bytes)
+        stream = BytesIO(raw_bytes)
+        doc = Document(stream)
         raw_text = "\n".join([p.text for p in doc.paragraphs])
     else:
-        raw_text = file_bytes.read().decode("utf-8", errors="ignore")
+        raw_text = raw_bytes.decode("utf-8", errors="ignore")
     
     report = [
         "==========================================================================",
@@ -325,15 +325,14 @@ if uploaded_file is not None:
     _, ext = os.path.splitext(filename.lower())
     st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
 
-    # Pure BytesIO object container initialization
-    file_bytes = BytesIO(uploaded_file.read())
-    file_bytes.seek(0)
+    # READ INTO PURE IMMUTABLE BYTES VAL ONCE. NO MORE MUTABLE STREAMS PASSING!
+    raw_file_content = uploaded_file.read()
 
     # 1. SPREADSHEETS ROUTING BLOCK (.csv, .xlsx, .xls)
     if ext in ['.xlsx', '.xls', '.csv']:
         try:
             with st.spinner("Executing structural extraction algorithms..."):
-                cleaned_df = clean_spreadsheet(file_bytes, ext)
+                cleaned_df = clean_spreadsheet(raw_file_content, ext)
             
             sales_cols = [c for c in cleaned_df.columns if any(k in c for k in ['sales', 'amount', 'price', 'revenue', 'cost', 'total', 'salary'])]
             date_cols = [c for c in cleaned_df.columns if any(k in c for k in ['date', 'trans', 'hire'])]
@@ -398,7 +397,7 @@ if uploaded_file is not None:
     elif ext == '.txt':
         try:
             with st.spinner("Processing text-based agricultural matrices..."):
-                agri_output_report = process_agricultural_matrix(file_bytes, ext, agri_scale, agri_loc)
+                agri_output_report = process_agricultural_matrix(raw_file_content, ext, agri_scale, agri_loc)
             st.subheader("👀 Preview Blueprint")
             st.text_area("Generated Output File Data Display", value=agri_output_report, height=500)
             st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
@@ -408,28 +407,25 @@ if uploaded_file is not None:
     # 3. WORD DOCUMENT ROUTING BLOCK (.docx)
     elif ext == '.docx':
         try:
-            # Check content safely inside this specific block
-            check_doc = Document(file_bytes)
+            # Check text securely without corrupting variables
+            check_doc = Document(BytesIO(raw_file_content))
             full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
             is_agri_doc = any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"])
-            file_bytes.seek(0)
             
             if is_agri_doc:
                 st.success("🌱 **Agricultural data keywords detected inside this Word Document.**")
                 with st.spinner("Processing yield models with agronomy protection matrices..."):
-                    # PASS ONLY THE RAW STREAM WITHOUT PACKAGING INTO TUPLES
-                    agri_output_report = process_agricultural_matrix(file_bytes, ext, agri_scale, agri_loc)
+                    agri_output_report = process_agricultural_matrix(raw_file_content, ext, agri_scale, agri_loc)
                 st.subheader("👀 Preview Blueprint")
                 st.text_area("Generated Output File Data Display", value=agri_output_report, height=400)
                 st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
                 st.markdown("---")
             
-            # Display document cleaning choices down below safely
             st.subheader("📝 Document Text Re-Styling Dashboard")
             with st.spinner("Normalizing text formatting layouts..."):
-                doc_stream = parse_and_reformat_document(file_bytes, doc_style)
+                doc_bytes_out = parse_and_reformat_document(raw_file_content, doc_style)
             st.info(f"Word file content parsed smoothly. Spacing structural layouts corrected to matching **{doc_style.upper()}** criteria specifications.")
-            st.download_button(f"📥 Download Formatted {doc_style} Document (.docx)", data=doc_stream, file_name="cleaned_master_document.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+            st.download_button(f"📥 Download Formatted {doc_style} Document (.docx)", data=doc_bytes_out, file_name="cleaned_master_document.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
             
         except Exception as e: 
             st.error(f"Document Multi-Engine Processing Fault: {str(e)}")
