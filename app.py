@@ -66,11 +66,12 @@ AGRI_MASTER_DB = {
 }
 
 # --- ENGINE 1: DATA CLEANER & STRUCTURAL AUDITOR ---
-def clean_spreadsheet(uploaded_file, ext):
+def clean_spreadsheet(file_bytes, ext):
+    file_bytes.seek(0)
     if ext == '.csv':
-        df = pd.read_csv(uploaded_file)
+        df = pd.read_csv(file_bytes)
     else:
-        df = pd.read_excel(uploaded_file, engine='openpyxl')
+        df = pd.read_excel(file_bytes, engine='openpyxl')
     
     if len(df.columns) == 1:
         raw_col = df.columns[0]
@@ -181,8 +182,9 @@ def clean_spreadsheet(uploaded_file, ext):
     return df
 
 # --- ENGINE 2: DOCUMENT PROCESSING & STYLE ADAPTER ---
-def parse_and_reformat_document(uploaded_file, selected_style):
-    doc = Document(uploaded_file)
+def parse_and_reformat_document(file_bytes, selected_style):
+    file_bytes.seek(0)
+    doc = Document(file_bytes)
     cleaned_doc = Document()
     raw_paras = []
     for p in doc.paragraphs:
@@ -252,12 +254,13 @@ def parse_and_reformat_document(uploaded_file, selected_style):
     return out
 
 # --- ENGINE 3: AGRICULTURAL MODELER & CALCULATOR ---
-def process_agricultural_matrix(uploaded_file, ext, target_acres, location_profile):
+def process_agricultural_matrix(file_bytes, ext, target_acres, location_profile):
+    file_bytes.seek(0)
     if ext == '.docx':
-        doc = Document(uploaded_file)
+        doc = Document(file_bytes)
         raw_text = "\n".join([p.text for p in doc.paragraphs])
     else:
-        raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
+        raw_text = file_bytes.read().decode("utf-8", errors="ignore")
     
     report = [
         "==========================================================================",
@@ -322,22 +325,25 @@ if uploaded_file is not None:
     _, ext = os.path.splitext(filename.lower())
     st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
 
+    # FIX: Copy file into a dedicated isolated BytesIO memory buffer so it never gets dropped or locked
+    file_bytes = BytesIO(uploaded_file.read())
+    file_bytes.seek(0)
+
     is_agri_doc = False
     if ext == '.docx':
         try:
-            check_doc = Document(uploaded_file)
+            check_doc = Document(file_bytes)
             full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
             if any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"]):
                 is_agri_doc = True
-            # FIX: Ensure the file stream layout is reset to position 0 before executing other processing blocks
-            uploaded_file.seek(0)
+            file_bytes.seek(0)
         except:
             pass
 
     if ext in ['.xlsx', '.xls', '.csv']:
         try:
             with st.spinner("Executing structural extraction algorithms..."):
-                cleaned_df = clean_spreadsheet(uploaded_file, ext)
+                cleaned_df = clean_spreadsheet(file_bytes, ext)
             
             sales_cols = [c for c in cleaned_df.columns if any(k in c for k in ['sales', 'amount', 'price', 'revenue', 'cost', 'total', 'salary'])]
             date_cols = [c for c in cleaned_df.columns if any(k in c for k in ['date', 'trans', 'hire'])]
@@ -401,7 +407,7 @@ if uploaded_file is not None:
     elif ext == '.txt' or is_agri_doc:
         try:
             with st.spinner("Processing yield models with agronomy protection matrices..."):
-                agri_output_report = process_agricultural_matrix(uploaded_file, ext, agri_scale, agri_loc)
+                agri_output_report = process_agricultural_matrix(file_bytes, ext, agri_scale, agri_loc)
             st.subheader("👀 Preview Blueprint")
             st.text_area("Generated Output File Data Display", value=agri_output_report, height=500)
             st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
@@ -411,7 +417,7 @@ if uploaded_file is not None:
     elif ext == '.docx':
         try:
             with st.spinner("Normalizing text formatting layouts..."):
-                doc_stream = parse_and_reformat_document(uploaded_file, doc_style)
+                doc_stream = parse_and_reformat_document(file_bytes, doc_style)
             st.subheader("👀 Preview Status")
             st.success(f"Document content parsed successfully. Spacing layouts corrected, and language set to **{doc_style.upper()}** parameters.")
             st.download_button(f"📥 Download Formatted {doc_style} Document", data=doc_stream, file_name="cleaned_master_document.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
