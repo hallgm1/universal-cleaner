@@ -5,67 +5,16 @@ import re
 import os
 from datetime import datetime, timedelta
 from io import BytesIO
-from docx import Document
 
-# Optimize page viewports across mobile browsers and high-resolution desktop terminals
 st.set_page_config(
-    page_title="Global Enterprise Multi-Cleaner",
-    page_icon="⚡",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="Data Cleaner Pro",
+    page_icon="📊",
+    layout="wide"
 )
 
-# --- GLOBAL HORTICULTURAL SYSTEM DATABASE ---
-AGRI_MASTER_DB = {
-    "soil_profiles": {
-        "Mkuranga / Coast Region": "Coastal sand-loam variants, exceptional drainage parameters, low organic baseline, high humidity indexes.",
-        "General / Standard Tropical": "Variable clay-loam variations, standard retention capacities."
-    },
-    "fertilizer_matrix": {
-        "Basal Phase": "DAP (Diammonium Phosphate) - Engineered for immediate structural root architecture building.",
-        "Vegetative Growth": "UREA / CAN (Calcium Ammonium Nitrate) - High-efficiency nitrogen release systems.",
-        "Production Phase": "NPK 15:15:15 / 20:10:10 - Balanced core macronutrient distribution layers.",
-        "Quality & Yield Brix Adjustment": "MOP (Muriate of Potash) - Essential for fruit weight optimization, density development, and natural sugar profiling."
-    },
-    "crop_blueprint": {
-        "Onions (Kitunguu)": {"target_yield_per_acre_tons": 16.0, "spacing": "30cm x 10cm", "density_per_acre": 133000, "base_price_tsh": 1800000},
-        "Tomatoes": {"target_yield_per_acre_tons": 25.0, "spacing": "60cm x 50cm", "density_per_acre": 13300, "base_price_tsh": 1200000},
-        "Watermelon": {"target_yield_per_acre_tons": 30.0, "spacing": "150cm x 100cm", "density_per_acre": 2700, "base_price_tsh": 800000},
-        "Okra (Bamia)": {"target_yield_per_acre_tons": 8.0, "spacing": "50cm x 30cm", "density_per_acre": 26600, "base_price_tsh": 1500000},
-        "Mangoes": {"target_yield_per_acre_tons": 12.0, "spacing": "9m x 9m", "density_per_acre": 50, "base_price_tsh": 2500000},
-        "Pineapples": {"target_yield_per_acre_tons": 35.0, "spacing": "90cm x 60cm x 30cm", "density_per_acre": 18000, "base_price_tsh": 900000},
-        "Cashew": {"target_yield_per_acre_tons": 1.2, "spacing": "12m x 12m", "density_per_acre": 27, "base_price_tsh": 3000000}
-    },
-    "protection_schedules": {
-        "Onions (Kitunguu)": [
-            {"phase": "Nursery Phase (Weeks 1-6)", "target": "Damping Off & Nursery Thrips", "intervention": "Metalaxyl + Profenofos drenching loop", "rate": "2g/L + 1ml/L", "phi": "N/A"},
-            {"phase": "Transplanting Window (Weeks 6-7)", "target": "Seedling Shock & Root Nematodes", "intervention": "Humic acid root dipping + Bio-nematicides", "rate": "5ml/L", "phi": "N/A"},
-            {"phase": "Early Growth & Vining (Weeks 8-12)", "target": "Onion Thrips & Purple Blotch", "intervention": "Lambda-Cyhalothrin + Mancozeb protective spray", "rate": "0.5ml/L + 2.5g/L", "phi": "14 Days"},
-            {"phase": "Bulb Expansion Phase (Weeks 13-19)", "target": "Downy Mildew & Storage Rot Risk", "intervention": "Copper Oxychloride + Acetamiprid systematic sweep", "rate": "2g/L + 0.5g/L", "phi": "7 Days"},
-            {"phase": "Maturity & Solar Curing (Weeks 20-24+)", "target": "Neck Rot & Post-Harvest Degradation", "intervention": "Stop all irrigation loops completely. Windrow drying field curing.", "rate": "Manual Processing", "phi": "Zero Chemical Pass"}
-        ],
-        "Tomatoes": [
-            {"phase": "Nursery / Transplanting", "target": "Damping Off & Early Aphids", "intervention": "Copper Oxychloride + Imidacloprid", "rate": "2g/L + 0.5ml/L", "phi": "N/A"},
-            {"phase": "Early Vegetative (Wk 1-3)", "target": "Tuta Absoluta & Leaf Miners", "intervention": "Flubendiamide or Spinosad", "rate": "0.3ml/L", "phi": "3 Days"},
-            {"phase": "Flowering to Fruit Set", "target": "Early/Late Blight & Whiteflies", "intervention": "Mancozeb + Acetamiprid", "rate": "2.5g/L + 0.5g/L", "phi": "7 Days"},
-            {"phase": "Maturation / Harvest", "target": "Fruit Borers & Powdery Mildew", "intervention": "Indoxacarb + Azoxystrobin", "rate": "0.5ml/L + 1ml/L", "phi": "3 Days"}
-        ],
-        "Watermelon": [
-            {"phase": "Seedling Emergence", "target": "Soil Insects & Damping Off", "intervention": "Metalaxyl drenching", "rate": "2g/L", "phi": "N/A"},
-            {"phase": "Vining / Vegetative", "target": "Melon Aphids & Thrips", "intervention": "Thiamethoxam Compound Pass", "rate": "0.4g/L", "phi": "7 Days"},
-            {"phase": "Flowering Block", "target": "Downy Mildew (Avoid pollinator disruption)", "intervention": "Propamocarb (Apply late afternoon)", "rate": "1.5ml/L", "phi": "3 Days"},
-            {"phase": "Fruit Expansion", "target": "Fruit Flies & Anthracnose", "intervention": "Lambda-Cyhalothrin + Mancozeb", "rate": "0.5ml/L + 2g/L", "phi": "7 Days"}
-        ],
-        "Okra (Bamia)": [
-            {"phase": "Early Establishment", "target": "Flea Beetles & Jassids", "intervention": "Imidacloprid foliar application", "rate": "0.5ml/L", "phi": "7 Days"},
-            {"phase": "Vegetative Stretch", "target": "Powdery Mildew & Aphids", "intervention": "Sulfur WG + Acetamiprid", "rate": "3g/L + 0.4g/L", "phi": "3 Days"},
-            {"phase": "Flowering Phase", "target": "Bollworms / Pod Borers", "intervention": "Chlorantraniliprole (Coragen)", "rate": "0.4ml/L", "phi": "1 Day"},
-            {"phase": "Active Harvest Loop", "target": "Whiteflies & Red Spider Mites", "intervention": "Abamectin (Strict PHI safety sweep)", "rate": "0.5ml/L", "phi": "3 Days"}
-        ]
-    }
-}
+st.title("📊 Dedicated Spreadsheet Cleaning Tool")
+st.write("Upload any Excel or CSV ledger. This tool automatically handles variable column layouts, sanitizes headers, and builds custom dashboard analytics.")
 
-# --- ENGINE 1: DATA CLEANER & STRUCTURAL AUDITOR ---
 def clean_spreadsheet(raw_bytes, ext):
     stream = BytesIO(raw_bytes)
     if ext == '.csv':
@@ -73,6 +22,7 @@ def clean_spreadsheet(raw_bytes, ext):
     else:
         df = pd.read_excel(stream, engine='openpyxl')
     
+    # Handle single-string collapsed lines
     if len(df.columns) == 1:
         raw_col = df.columns[0]
         header_line = str(raw_col).replace('"', '').strip()
@@ -174,260 +124,71 @@ def clean_spreadsheet(raw_bytes, ext):
             df[col] = df[col].apply(_normalize_region)
 
     df.dropna(how='all', inplace=True)
-    
     if phone_cols:
         valid_phone_col = phone_cols[0]
         df = df.loc[~(df[valid_phone_col].duplicated(keep='first') & (df[valid_phone_col] != ""))]
         
     return df
 
-# --- ENGINE 2: DOCUMENT PROCESSING & STYLE ADAPTER ---
-def parse_and_reformat_document(raw_bytes, selected_style):
-    stream = BytesIO(raw_bytes)
-    doc = Document(stream)
-    cleaned_doc = Document()
-    raw_paras = []
-    for p in doc.paragraphs:
-        t = p.text.strip()
-        if t: raw_paras.append(re.sub(r'\s+', ' ', t))
-            
-    full_text_block = "\n".join(raw_paras)
-    is_letter = "to:" in full_text_block.lower() or "dear" in full_text_block.lower()
-    
-    if is_letter and selected_style in ["Business", "Formal"]:
-        cleaned_doc.add_paragraph("[SENDER CONTACT DETAILS]\n[Postal Address Line 1]\nDar es Salaam, Tanzania\n")
-        cleaned_doc.add_paragraph(f"Date: May 22, 2026\n")
-    else:
-        cleaned_doc.add_heading(f"REFORMATTED BUSINESS ARTIFACT - STYLE: {selected_style.upper()}", level=1)
-        
-    greeting_injected = False
-    
-    for txt in raw_paras:
-        if selected_style in ["Business", "Formal"]:
-            if txt.lower().startswith("date:"): continue
-            if txt.lower().startswith("to:"):
-                txt = re.sub(r"\bto:\s*", "TO:\n", txt, flags=re.I)
-                txt = txt.title().replace("Nssf", "NSSF")
-                cleaned_doc.add_paragraph(txt)
-                continue
-                
-            contains_greeting = any(k in txt.lower() for k in ["hey there", "hi team", "hey", "hi", "dear sir"])
-            if contains_greeting:
-                if not greeting_injected:
-                    cleaned_doc.add_paragraph("Dear Sir/Madam,")
-                    greeting_injected = True
-                txt = re.sub(r"\bhey\s+there,?\s*|\bhi\s+team,?\s*|\bhey,?\s*|\bhi,?\s*|\bdear\s+sir/madam,?\s*", "", txt, flags=re.I)
-                if not txt.strip(): continue
-
-            txt = re.sub(r"\bi'm\b", "I am", txt, flags=re.I)
-            txt = re.sub(r"\bcan't\b", "cannot", txt, flags=re.I)
-            txt = re.sub(r"\bdon't\b", "do not", txt, flags=re.I)
-            txt = re.sub(r"\basap\b", "as soon as possible", txt, flags=re.I)
-            txt = re.sub(r"\bhaven't\b", "have not", txt, flags=re.I)
-            txt = re.sub(r"\bask about\b", "inquire regarding", txt, flags=re.I)
-            txt = re.sub(r"\bi've\b", "I have", txt, flags=re.I)
-            txt = re.sub(r"\bi\b", "I", txt)
-            txt = re.sub(r"\b(i\s)", "I ", txt)
-            
-            sentences = txt.split('.')
-            processed_sentences = []
-            for s in sentences:
-                s_strip = s.strip()
-                if len(s_strip) > 0: processed_sentences.append(s_strip[0].upper() + s_strip[1:])
-            txt = ". ".join(processed_sentences)
-            if len(txt) > 0 and not txt.endswith('.'): txt += '.'
-            txt = re.sub(r',+', ',', txt)
-            txt = txt.replace("Nssf", "NSSF")
-            
-        elif selected_style == "Non-Formal":
-            txt = re.sub(r"\butilize\b", "use", txt, flags=re.I)
-            txt = re.sub(r"\bsubsequent to\b", "after", txt, flags=re.I)
-            
-        cleaned_doc.add_paragraph(txt)
-        
-    if is_letter and selected_style in ["Business", "Formal"]:
-        cleaned_doc.add_paragraph("\nYours faithfully,\n\n\n_______________________\n[Insert Full Account Name]\nClaimant / Account Holder")
-        
-    out = BytesIO()
-    cleaned_doc.save(out)
-    out.seek(0)
-    return out.getvalue()
-
-# --- ENGINE 3: AGRICULTURAL MODELER & CALCULATOR ---
-def process_agricultural_matrix(raw_bytes, ext, target_acres, location_profile):
-    if ext == '.docx':
-        stream = BytesIO(raw_bytes)
-        doc = Document(stream)
-        raw_text = "\n".join([p.text for p in doc.paragraphs])
-    else:
-        raw_text = raw_bytes.decode("utf-8", errors="ignore")
-    
-    report = [
-        "==========================================================================",
-        "          ENTERPRISE HORTICULTURE PLAN & PRECISION MANUAL GENERATOR       ",
-        "==========================================================================",
-        f"Target Operating Footprint Size: {target_acres} Acre(s)",
-        f"Selected Regional Profile: {location_profile}",
-        f"Soil Composition Analysis: {AGRI_MASTER_DB['soil_profiles'].get(location_profile, 'Standard Base')}\n",
-        "--------------------------------------------------------------------------",
-        "1. PRECISION MANAGEMENT MANUAL & NUTRIENT APPLICATION CYCLES",
-        "--------------------------------------------------------------------------"
-    ]
-    for phase, management_plan in AGRI_MASTER_DB['fertilizer_matrix'].items():
-        report.append(f"  ⚡ {phase} Matrix -> Use: {management_plan}")
-        
-    detected_any = False
-    crop_blocks = []
-    
-    for crop, data in AGRI_MASTER_DB['crop_blueprint'].items():
-        crop_keyword = crop.lower().split(' ')[0]
-        if crop_keyword in raw_text.lower() or "all" in raw_text.lower() or len(raw_text.strip()) < 10:
-            detected_any = True
-            total_plant_population = int(data['density_per_acre'] * target_acres)
-            total_yield_tons = round(data['target_yield_per_acre_tons'] * target_acres, 2)
-            projected_gross_revenue = float(total_yield_tons * 1000 * (data['base_price_tsh'] / 1000))
-            
-            cb = [
-                f"\n● CROP SYSTEM: {crop.upper()}",
-                f"  ▪ Recommended Plant Population Sizing: {total_plant_population:,} plants",
-                f"  ▪ Regional Spacing Configurations: {data['spacing']}",
-                f"  ▪ Expected Operational Harvest Output: {total_yield_tons:,} Tons",
-                f"  ▪ Projected Market Value Index Baseline: TSh {projected_gross_revenue:,.2f}"
-            ]
-            if crop in AGRI_MASTER_DB["protection_schedules"]:
-                cb.append("\n  ⚙️ TIMELINE MANAGEMENT & CROP CALENDAR SCHEDULING INTERVENTIONS:")
-                for schedule in AGRI_MASTER_DB["protection_schedules"][crop]:
-                    cb.append(f"    ▪ [{str(schedule['phase'])}]")
-                    cb.append(f"      Target: {str(schedule['target'])}")
-                    cb.append(f"      Action Plan: {str(schedule['intervention'])} | Field Dosage Rate: {str(schedule['rate'])} | PHI Window: {str(schedule['phi'])}")
-            crop_blocks.append("\n".join(cb))
-            
-    report.append("\n--------------------------------------------------------------------------")
-    report.append("2. FINANCIAL FORECAST & PREDICTIVE YIELD MATRIX MODEL")
-    report.append("--------------------------------------------------------------------------")
-    if detected_any: report.append("\n".join(crop_blocks))
-    else: report.append("\n*Note: No custom crop targets matched your instructions file. Baseline metrics provided.*")
-    return "\n".join(report)
-
-# --- INTERACTIVE USER INTERFACE CONSOLE ---
-st.title("🧹 Universal Master Data Cleaning Hub")
-st.write("Upload any file type below. The unified script automatically smells data delimiters, parses columns, reformats documents, and builds field production blueprints.")
-
-st.sidebar.header("⚙️ System Control Panel")
-doc_style = st.sidebar.selectbox("Document Re-Styling Mode", ["Business", "Formal", "Non-Formal"])
-agri_scale = st.sidebar.number_input("Target Agricultural Scale (Acres)", min_value=0.5, max_value=500.0, value=1.0, step=0.5)
-agri_loc = st.sidebar.selectbox("Target Regional Zone", ["Mkuranga / Coast Region", "General / Standard Tropical"])
-
-uploaded_file = st.file_uploader("Upload target ledger, contract, presentation text, or agricultural directive", type=["xlsx", "xls", "csv", "docx", "txt"])
+uploaded_file = st.file_uploader("Upload target sheet ledger", type=["xlsx", "xls", "csv"])
 
 if uploaded_file is not None:
     filename = str(uploaded_file.name)
     ext = os.path.splitext(filename.lower())[1]
-    st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
+    raw_file_content = uploaded_file.getvalue()
 
-    raw_file_content = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
-
-    # 1. SPREADSHEETS ROUTING BLOCK (.csv, .xlsx, .xls)
-    if ext in ['.xlsx', '.xls', '.csv']:
-        try:
-            with st.spinner("Executing structural extraction algorithms..."):
-                cleaned_df = clean_spreadsheet(raw_file_content, ext)
+    try:
+        cleaned_df = clean_spreadsheet(raw_file_content, ext)
+        
+        # Display polished presentation headers
+        display_df = cleaned_df.copy()
+        formatted_headers = {col: re.sub(r'\s+', ' ', col.replace('_', ' ').strip()).title() for col in display_df.columns}
+        display_df.rename(columns=formatted_headers, inplace=True)
+        
+        st.subheader("👀 Cleaned Data Preview")
+        st.dataframe(display_df, use_container_width=True)
+        
+        out_buf = BytesIO()
+        if ext == '.csv':
+            display_df.to_csv(out_buf, index=False)
+            m_type, name_out = "text/csv", "cleaned_data.csv"
+        else:
+            display_df.to_excel(out_buf, index=False, engine='openpyxl')
+            m_type, name_out = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "cleaned_data.xlsx"
+        out_buf.seek(0)
+        
+        st.download_button("📥 Download Cleaned Sheet", data=out_buf, file_name=name_out, mime=m_type, use_container_width=True)
+        
+        # Dynamic Analysis Engine - Checks dataset columns natively
+        sales_cols = [c for c in cleaned_df.columns if any(k in c for k in ['sales', 'amount', 'price', 'revenue', 'cost', 'total', 'salary'])]
+        date_cols = [c for c in cleaned_df.columns if any(k in c for k in ['date', 'trans', 'hire'])]
+        zone_cols = [c for c in cleaned_df.columns if any(k in c for k in ['zone', 'region', 'dept', 'business_unit', 'unit'])]
+        
+        st.markdown("---")
+        st.subheader("📊 Operational Analytics Metrics")
+        
+        if sales_cols:
+            metric_df = cleaned_df.copy()
+            metric_df[sales_cols[0]] = metric_df[sales_cols[0]].astype(str).str.replace(',', '').astype(float)
             
-            sales_cols = [c for c in cleaned_df.columns if any(k in c for k in ['sales', 'amount', 'price', 'revenue', 'cost', 'total', 'salary'])]
-            date_cols = [c for c in cleaned_df.columns if any(k in c for k in ['date', 'trans', 'hire'])]
-            zone_cols = [c for c in cleaned_df.columns if any(k in c for k in ['zone', 'region', 'dept', 'business_unit', 'unit'])]
+            c1, c2 = st.columns(2)
+            c1.metric(label="Sum Value Volume", value=f"{metric_df[sales_cols[0]].sum():,.2f}")
+            c2.metric(label="Total Processed Records", value=f"{len(metric_df)} Valid Rows")
             
-            display_df = cleaned_df.copy()
-            formatted_headers = {}
-            for col in display_df.columns:
-                cleaned_header = col.replace('_', ' ').strip()
-                cleaned_header = re.sub(r'\s+', ' ', cleaned_header)
-                if cleaned_header.lower() in ['sno', 'id', 'eeid', 'ee id']:
-                    formatted_headers[col] = cleaned_header.upper()
-                else:
-                    formatted_headers[col] = cleaned_header.title()
-            display_df.rename(columns=formatted_headers, inplace=True)
+            if date_cols:
+                st.write("📈 **Financial Metrics Over Time**")
+                valid_dates = metric_df[metric_df[date_cols[0]] != 'Invalid Date'].copy()
+                if not valid_dates.empty:
+                    valid_dates[date_cols[0]] = pd.to_datetime(valid_dates[date_cols[0]])
+                    trend = valid_dates.groupby(date_cols[0])[sales_cols[0]].sum().reset_index()
+                    st.line_chart(data=trend, x=date_cols[0], y=sales_cols[0])
             
-            st.subheader("👀 Preview Cleaned Grid")
-            st.dataframe(display_df, use_container_width=True)
+            if zone_cols:
+                st.write("🌍 **Categorical Distribution Breakdown**")
+                zone_chart = metric_df.groupby(zone_cols[0])[sales_cols[0]].sum().reset_index()
+                st.bar_chart(data=zone_chart, x=zone_cols[0], y=sales_cols[0])
+        else:
+            st.info("ℹ️ Structural validation complete. Visual charts are minimized since no currency/numeric columns were found.")
             
-            out_buf = BytesIO()
-            if ext == '.csv':
-                display_df.to_csv(out_buf, index=False)
-                m_type, name_out = "text/csv", "cleaned_master_spreadsheet.csv"
-            else:
-                display_df.to_excel(out_buf, index=False, engine='openpyxl')
-                m_type, name_out = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "cleaned_master_spreadsheet.xlsx"
-            out_buf.seek(0)
-            st.download_button("📥 Download Cleaned Spreadsheet", data=out_buf, file_name=name_out, mime=m_type, use_container_width=True)
-            
-            st.markdown("---")
-            st.subheader("📊 Executive Data Insights Dashboard")
-            
-            # Formatically compute analytics only if target tracking columns are found
-            if sales_cols:
-                metric_df = cleaned_df.copy()
-                metric_df[sales_cols[0]] = metric_df[sales_cols[0]].astype(str).str.replace(',', '').astype(float)
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    total_vol = metric_df[sales_cols[0]].sum()
-                    st.metric(label="Validated Volume Summary", value=f"{total_vol:,.2f}")
-                with col2:
-                    total_records = len(metric_df)
-                    st.metric(label="Total Cleaned Safe Records", value=f"{total_records} Active Rows")
-                
-                if date_cols:
-                    st.write("📈 **Data Volume Metric Over Time**")
-                    valid_dates_df = metric_df[metric_df[date_cols[0]] != 'Invalid Date'].copy()
-                    if not valid_dates_df.empty:
-                        valid_dates_df[date_cols[0]] = pd.to_datetime(valid_dates_df[date_cols[0]])
-                        time_trend = valid_dates_df.groupby(date_cols[0])[sales_cols[0]].sum().reset_index()
-                        st.line_chart(data=time_trend, x=date_cols[0], y=sales_cols[0])
-                    
-                if zone_cols:
-                    st.write("🌍 **Categorical Category Volume Split**")
-                    zone_chart = metric_df.groupby(zone_cols[0])[sales_cols[0]].sum().reset_index()
-                    st.bar_chart(data=zone_chart, x=zone_cols[0], y=sales_cols[0])
-            else:
-                # Fallback if no numeric value tracking targets are detected
-                st.info("ℹ️ Spreadsheet structures analyzed successfully. Visual analytics charts are muted since no matching currency, financial ledger tracking or sales headers were detected.")
-                    
-        except Exception as e: 
-            st.error(f"Spreadsheet Clean Sub-system Fault: {str(e)}")
-            
-    # 2. RAW TEXT ROUTING BLOCK (.txt)
-    elif ext == '.txt':
-        try:
-            with st.spinner("Processing text-based agricultural matrices..."):
-                agri_output_report = process_agricultural_matrix(raw_file_content, ext, agri_scale, agri_loc)
-            st.subheader("👀 Preview Blueprint")
-            st.text_area("Generated Output File Data Display", value=agri_output_report, height=500)
-            st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
-        except Exception as e: 
-            st.error(f"Agricultural Text Processor Fault: {str(e)}")
-
-    # 3. WORD DOCUMENT ROUTING BLOCK (.docx)
-    elif ext == '.docx':
-        try:
-            check_doc = Document(BytesIO(raw_file_content))
-            full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
-            is_agri_doc = any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"])
-            
-            if is_agri_doc:
-                st.success("🌱 **Agricultural data keywords detected inside this Word Document.**")
-                with st.spinner("Processing yield models with agronomy protection matrices..."):
-                    agri_output_report = process_agricultural_matrix(raw_file_content, ext, agri_scale, agri_loc)
-                st.subheader("👀 Preview Blueprint")
-                st.text_area("Generated Output File Data Display", value=agri_output_report, height=400)
-                st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
-                st.markdown("---")
-            
-            st.subheader("📝 Document Text Re-Styling Dashboard")
-            with st.spinner("Normalizing text formatting layouts..."):
-                doc_bytes_out = parse_and_reformat_document(raw_file_content, doc_style)
-            st.info(f"Word file content parsed smoothly. Spacing structural layouts corrected to matching **{doc_style.upper()}** criteria specifications.")
-            st.download_button(f"📥 Download Formatted {doc_style} Document (.docx)", data=doc_bytes_out, file_name="cleaned_master_document.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
-            
-        except Exception as e: 
-            st.error(f"Document Multi-Engine Processing Fault: {str(e)}")
+    except Exception as e:
+        st.error(f"Spreadsheet Engine Fault: {str(e)}")
