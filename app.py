@@ -317,10 +317,23 @@ agri_loc = st.sidebar.selectbox("Target Regional Zone", ["Mkuranga / Coast Regio
 
 uploaded_file = st.file_uploader("Upload target ledger, contract, presentation text, or agricultural directive", type=["xlsx", "xls", "csv", "docx", "txt"])
 
+# CRITICAL LOGICAL WRAPPING FIX: Everything downstream occurs inside this indentation layer
 if uploaded_file is not None:
     filename = uploaded_file.name
     _, ext = os.path.splitext(filename.lower())
     st.info(f"📁 System Core verified file extension properties: **{ext.upper()}**")
+
+    # Evaluate agri context flags safely inside runtime memory space
+    is_agri_doc = False
+    if ext == '.docx':
+        try:
+            check_doc = Document(uploaded_file)
+            uploaded_file.seek(0)
+            full_text = "\n".join([p.text for p in check_doc.paragraphs]).lower()
+            if any(k in full_text for k in ["directive", "okra", "harvest", "field blueprint", "crop", "onion", "kitunguu"]):
+                is_agri_doc = True
+        except:
+            pass
 
     if ext in ['.xlsx', '.xls', '.csv']:
         try:
@@ -383,16 +396,18 @@ if uploaded_file is not None:
                     zone_chart = metric_df.groupby(zone_cols[0])[sales_cols[0]].sum().reset_index()
                     st.bar_chart(data=zone_chart, x=zone_cols[0], y=sales_cols[0])
                     
-        except Exception as e: st.error(f"Spreadsheet Clean Sub-system Fault: {str(e)}")
+        except Exception as e: 
+            st.error(f"Spreadsheet Clean Sub-system Fault: {str(e)}")
             
-    elif ext == '.txt' or (ext == '.docx' and any(k in filename.lower() for k in ["directive", "okra", "harvest", "field", "blueprint", "crop", "onion", "kitunguu"])):
+    elif ext == '.txt' or is_agri_doc:
         try:
             with st.spinner("Processing yield models with agronomy protection matrices..."):
                 agri_output_report = process_agricultural_matrix(uploaded_file, ext, agri_scale, agri_loc)
             st.subheader("👀 Preview Blueprint")
             st.text_area("Generated Output File Data Display", value=agri_output_report, height=500)
             st.download_button("📥 Download Agri Implementation Plan (.txt)", data=agri_output_report, file_name="agri_precision_production_manual.txt", mime="text/plain", use_container_width=True)
-        except Exception as e: st.error(f"Agricultural Modeling Engine Fault: {str(e)}")
+        except Exception as e: 
+            st.error(f"Agricultural Modeling Engine Fault: {str(e)}")
 
     elif ext == '.docx':
         try:
@@ -401,4 +416,5 @@ if uploaded_file is not None:
             st.subheader("👀 Preview Status")
             st.success(f"Document content parsed successfully. Spacing layouts corrected, and language set to **{doc_style.upper()}** parameters.")
             st.download_button(f"📥 Download Formatted {doc_style} Document", data=doc_stream, file_name="cleaned_master_document.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
-        except Exception as e: st.error(f"Text Processing Engine Fault: {str(e)}")
+        except Exception as e: 
+            st.error(f"Text Processing Engine Fault: {str(e)}")
